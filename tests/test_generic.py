@@ -410,3 +410,21 @@ def test_bullets_in_other_shapes_are_kept_not_blanked():
     empty = Synopsis.model_validate({"profile": {}, "sections": [{"heading": "9. X", "blocks": [
         {"type": "bullets", "items": [{"zzz": 1}]}]}]})
     assert check_empty(empty)
+
+
+def test_ensure_cyan_and_tidy():
+    from tender_synopsis.schema import Synopsis
+    from tender_synopsis.verify import ensure_cyan, tidy_text
+    s = Synopsis.model_validate({"profile": {}, "title": "t",
+        "key_facts_table": [["Turnover Eligibility", "Nil / ₹20 lakh"], ["EMD", "==10%=="]],
+        "sections": [{"heading": "1. F", "blocks": [{"type": "bullets", "items": [
+            {"text": "==Minimum annual turnover ₹20 lakh=="},
+            {"text": "Above ₹1 crore: minimum annual turnover ₹50 lakh."},
+            {"text": "That the EMD is retained."}]}]}], "summary": ""})
+    assert ensure_cyan(s) >= 3
+    tidy_text(s)
+    items = [i.text for i in s.sections[0].blocks[0].items]
+    assert items[0] == "++Minimum annual turnover ₹20 lakh++"
+    assert "++₹50 lakh++" in items[1]
+    assert items[2] == "The EMD is retained."
+    assert s.key_facts_table[1] == ["EMD", "==10%=="]

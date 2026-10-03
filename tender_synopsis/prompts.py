@@ -61,6 +61,11 @@ D. When two files list the same sites / items / quantities / areas, compare them
    "As per lot details (policy default: 3 years)".
 14. If a file/letter number is printed but no tender/auction number, give it as
    "File ref. <number> (auction no. not stated)".
+15. Same subject, different trigger = different rules. When documents give different values
+   for different situations (e.g. a period counted from termination vs from expiry, a fee for
+   MSEs vs others, a rate before vs after a date), keep each with its condition and source
+   file. Never merge them into one value. If they truly clash, add a review_note.
+16. Every turnover / net worth / solvency figure is wrapped in ++cyan++, never ==yellow==.
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.

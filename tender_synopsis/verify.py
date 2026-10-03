@@ -251,10 +251,70 @@ def check_coverage(syn: Synopsis) -> list[Issue]:
     return issues
 
 
+_FIN = re.compile(r"turnover|net[ -]?worth|solvency|banker'?s? cert|financial eligibility"
+                  r"|similar work.{0,40}(?:₹|rs\.?|value)", re.I)
+_YELLOW = re.compile(r"==(.+?)==")
+_AMOUNT = re.compile(r"(turnover[^.;]*?)(₹\s?[\d,.]+\s*(?:lakh|lac|crore|cr)?\b|\bNil\b)", re.I)
+_THAT = re.compile(r"^(That|Which)\s+(?=[a-z])")
+
+
+def ensure_cyan(syn: Synopsis) -> int:
+    """House style: financial thresholds in cyan (++). Models often use yellow or nothing."""
+    changed = 0
+
+    def cy(v: str, whole: bool = False) -> str:
+        nonlocal changed
+        if not v or not (whole or _FIN.search(v)):
+            return v
+        new = _YELLOW.sub(lambda m: f"++{m.group(1)}++" if whole or _FIN.search(m.group(1))
+                          or _FIN.search(v) and re.search(r"₹|\blakh|\bcrore|\bnil\b", m.group(1), re.I)
+                          else m.group(0), v)
+        if "++" not in new:
+            if whole:
+                new = f"++{new.strip('=')}++" if "==" not in new else new
+            else:
+                new = _AMOUNT.sub(lambda m: f"{m.group(1)}++{m.group(2)}++", new)
+        changed += new != v
+        return new
+
+    rows = []
+    for row in syn.key_facts_table:
+        if row and _FIN.search(row[0]):
+            row = [cy(c, whole=True) for c in row]
+        rows.append(row)
+    syn.key_facts_table = rows
+    for sec in syn.sections:
+        for b in sec.blocks:
+            b.text = cy(b.text)
+            b.rows = [[cy(c) for c in row] for row in b.rows]
+            for it in b.items:
+                it.text = cy(it.text)
+                it.sub_items = [cy(x) for x in it.sub_items]
+    syn.summary = cy(syn.summary)
+    return changed
+
+
+def tidy_text(syn: Synopsis) -> None:
+    """Drop stray leading 'That ...' some models put on bullets."""
+    def t(v: str) -> str:
+        m = _THAT.match(v or "")
+        return v[m.end()].upper() + v[m.end() + 1:] if m else v
+    for sec in syn.sections:
+        for b in sec.blocks:
+            for it in b.items:
+                it.text = t(it.text)
+                it.sub_items = [t(x) for x in it.sub_items]
+
+
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     repaired = fix_markup(syn)
+    tidy_text(syn)
+    cyan = ensure_cyan(syn)
     pre = [Issue("info", "formatting", f"{repaired} broken highlight/bold marker(s) repaired "
                  "automatically.")] if repaired else []
+    if cyan:
+        pre.append(Issue("info", "formatting", f"{cyan} financial-eligibility item(s) set to "
+                         "cyan highlight automatically."))
     return pre + _run_checks(syn, tender)
 
 
