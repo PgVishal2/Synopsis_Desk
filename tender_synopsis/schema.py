@@ -90,14 +90,52 @@ class Profile(Lenient):
         return data
 
 
+_TEXT_KEYS = ("text", "content", "item", "bullet", "point", "value", "description",
+              "detail", "details", "body", "summary")
+_LABEL_KEYS = ("label", "title", "heading", "name", "key", "field")
+_SUB_KEYS = ("sub_items", "subitems", "sub_bullets", "children", "items", "points", "bullets")
+
+
+def _as_text(v) -> str:
+    if isinstance(v, str):
+        return v
+    if isinstance(v, (int, float)):
+        return str(v)
+    if isinstance(v, dict):
+        return Item._coerce(v)["text"]
+    if isinstance(v, list):
+        return "; ".join(_as_text(x) for x in v if _as_text(x))
+    return ""
+
+
 class Item(Lenient):
     text: str
     sub_items: list[str]
 
+    @staticmethod
+    def _coerce(data: dict) -> dict:
+        """Accept the many shapes models use for a bullet, e.g. {"label":..,"value":..},
+        {"content":..}, {"title":..,"details":[..]} - instead of silently leaving it empty."""
+        label = next((_as_text(data[k]) for k in _LABEL_KEYS if data.get(k)), "")
+        body = next((_as_text(data[k]) for k in _TEXT_KEYS if data.get(k)), "")
+        if data.get("text"):
+            text = _as_text(data["text"])
+        elif label and body:
+            text = f"**{label.rstrip(':')}:** {body}"
+        else:
+            text = body or label
+        subs = next((data[k] for k in _SUB_KEYS if isinstance(data.get(k), list)), [])
+        subs = [t for t in (_as_text(x) for x in subs) if t]
+        return {"text": text, "sub_items": subs}
+
     @model_validator(mode="before")
     @classmethod
     def _from_string(cls, data):
-        return {"text": data, "sub_items": []} if isinstance(data, str) else data
+        if isinstance(data, str):
+            return {"text": data, "sub_items": []}
+        if isinstance(data, dict):
+            return cls._coerce(data)
+        return data
 
 
 BLOCK_SYNONYMS = {"list": "bullets", "bullet": "bullets", "ul": "bullets", "ol": "numbered",
@@ -121,6 +159,13 @@ class Block(Lenient):
             if data["type"] not in ("kv_table", "table", "bullets", "numbered", "paragraph",
                                     "subheading"):
                 data["type"] = "paragraph"
+            if not data.get("items"):
+                for k in ("bullets", "points", "list", "content", "lines"):
+                    if isinstance(data.get(k), list) and data[k]:
+                        data["items"] = data[k]
+                        break
+            if data["type"] == "paragraph" and not data.get("text") and data.get("items"):
+                data["type"] = "bullets"
             rows = data.get("rows")
             if isinstance(rows, list):
                 data["rows"] = [[str(c) for c in r] if isinstance(r, list) else [str(r)]
@@ -230,4 +275,7 @@ class Synopsis(Lenient):
             data = dict(data)
             data["key_facts_table"] = [[str(c) for c in r] if isinstance(r, list) else [str(r)]
                                        for r in data["key_facts_table"]]
+            kft = data["key_facts_table"]
+            if kft and [c.strip("* ").lower() for c in kft[0][:2]] == ["particular", "details"]:
+                data["key_facts_table"] = kft[1:]          # the Word file adds this header itself
         return data

@@ -397,3 +397,16 @@ def test_ocr_space_breaker_skips_cloud_after_repeated_failures(monkeypatch):
     monkeypatch.setenv("OCR_ENGINE", "tesseract")   # local only: cloud never called
     ingest._ocr_png(b"png", "eng")
     assert calls["cloud"] == 2
+
+
+def test_bullets_in_other_shapes_are_kept_not_blanked():
+    s = Synopsis.model_validate({"profile": {}, "key_facts_table": [["Particular", "Details"], ["EMD", "10%"]],
+        "sections": [{"heading": "8.1 Scope", "blocks": [{"type": "bullets", "items": [
+            {"label": "Display plan", "value": "within 15 days"}, {"content": "Bear electricity cost"}]}]}]})
+    texts = [i.text for i in s.sections[0].blocks[0].items]
+    assert texts == ["**Display plan:** within 15 days", "Bear electricity cost"]
+    assert s.key_facts_table == [["EMD", "10%"]]
+    from tender_synopsis.verify import check_empty
+    empty = Synopsis.model_validate({"profile": {}, "sections": [{"heading": "9. X", "blocks": [
+        {"type": "bullets", "items": [{"zzz": 1}]}]}]})
+    assert check_empty(empty)

@@ -220,6 +220,22 @@ def fix_markup(syn: Synopsis) -> int:
     return fixed
 
 
+def check_empty(syn: Synopsis) -> list[Issue]:
+    """Headings with nothing under them usually mean the AI used an unexpected format."""
+    issues = []
+    for sec in syn.sections:
+        has = any(b.text.strip() or b.rows or any(i.text.strip() for i in b.items)
+                  for b in sec.blocks)
+        empty_items = sum(1 for b in sec.blocks for i in b.items if not i.text.strip())
+        if not has:
+            issues.append(Issue("warning", "content", f"Section '{sec.heading}' is empty in the "
+                                "synopsis - re-run or fill it in before sharing."))
+        elif empty_items:
+            issues.append(Issue("warning", "content", f"{empty_items} empty bullet(s) in "
+                                f"'{sec.heading}' - check the Word file."))
+    return issues
+
+
 def check_markup(syn: Synopsis) -> list[Issue]:
     bad = [s for s in _all_strings(syn) if any(s.count(m) % 2 for m in ("**", "==", "++"))]
     return [Issue("warning", "formatting", f"Unbalanced highlight/bold marker in: '{s[:70]}'")
@@ -247,7 +263,7 @@ def _run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
               [Issue("info", "sources", "Tender not supplied - source quotes not checked.")])
     if tender.pages:
         quotes += check_requirements(syn, tender)
-    issues = quotes + check_dates(syn) + check_markup(syn) + check_coverage(syn)
+    issues = quotes + check_empty(syn) + check_dates(syn) + check_markup(syn) + check_coverage(syn)
     issues += [Issue("warning", "ingest", w) for w in tender.warnings]
     issues += [Issue("warning", "model_note", n) for n in syn.review_notes]
     order = {"error": 0, "warning": 1, "info": 2}
