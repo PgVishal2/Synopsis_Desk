@@ -2,17 +2,17 @@
 {% from "_icons.html" import icon %}
 {% block title %}New synopsis{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>New synopsis</h1>
-  <p>Add every document of one tender together: NIT or catalogue, RFP, corrigenda, special and standard conditions, site lists.</p></div></div>
+<div class="page-head"><div><h1>Generate document synopsis</h1>
+  <p>Upload the relevant tender papers together: NIT or catalogue, RFP/EOI/RFQ, corrigenda, special and standard conditions, site lists and annexures.</p></div></div>
 
 <form method="post" enctype="multipart/form-data" id="upload-form">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
   <div class="folder">
-    <span class="tab">Tender file</span>
+    <span class="tab">Relevant documents</span>
     <label class="drop" id="drop" for="files">
       <div class="inner">
         {{ icon('upload', 34) }}
-        <h2>Drop the tender documents here</h2>
+        <h2>Drop the relevant documents here</h2>
         <p class="muted" style="margin:0">or click to choose · PDF, Word (.docx) or text · scanned pages are read automatically</p>
         <input id="files" type="file" name="files" multiple accept=".pdf,.docx,.txt">
       </div>
@@ -30,7 +30,8 @@
     </div>
     <label class="check"><input type="checkbox" name="double_check" checked> Second AI check of key figures</label>
   </div>
-  <button class="btn" id="go" type="submit">{{ icon('file') }} Make synopsis</button>
+  <button class="btn" id="go" type="submit">{{ icon('file') }} Generate Document Synopsis</button>
+  <p class="small muted" style="margin-top:10px"><b>File types it can't read:</b> Excel BOQs, .zip, image files (.jpg/.png), old .doc. Convert these to PDF first, or I can add support.</p>
   <p class="small muted" style="margin-top:10px">Takes 1–5 minutes. You can leave the page; the synopsis will be in History.</p>
 </form>
 {% endblock %}

@@ -5,8 +5,8 @@
 {% block content %}
 <section class="welcome">
   <div>
-    <h1>Make a tender synopsis</h1>
-    <p>Drop in the tender with its corrigenda, conditions and site lists. The app reads every page, writes the synopsis in house style and checks each figure against the source.</p>
+    <h1>Generate document synopsis</h1>
+    <p>Drop in the relevant tender documents, including corrigenda, conditions, site lists, annexures and related notes. The app reads the source material, extracts the key facts and checks figures before the document is shared.</p>
     <div class="facts-row">
       <span><b>{{ stats.total }}</b> synopses made</span>
       <span><b>{{ stats.month }}</b> this month</span>
@@ -14,8 +14,10 @@
       {% if stats.running %}<span><b>{{ stats.running }}</b> in progress</span>{% endif %}
     </div>
   </div>
-  <a class="btn" href="{{ url_for('main.new') }}">{{ icon('upload') }} Upload tender documents</a>
+  <a class="btn" href="{{ url_for('main.new') }}">{{ icon('upload') }} Upload relevant documents</a>
 </section>
+
+<p class="small muted" style="margin-top:12px"><b>File types it can't read:</b> Excel BOQs, .zip, image files (.jpg/.png), old .doc. Convert these to PDF first, or I can add support.</p>
 
 <div class="grid-2">
   <div class="panel">
@@ -30,7 +32,7 @@
       </li>
       {% endfor %}
     </ul>
-    <p style="margin:12px 0 0"><a href="{{ url_for('main.history') }}">See all synopses</a></p>
+    <p style="margin:12px 0 0"><a href="{{ url_for('main.history') }}">See all</a></p>
     {% else %}
     <div class="empty">No synopses yet. <a href="{{ url_for('main.new') }}">Upload your first tender</a>.</div>
     {% endif %}

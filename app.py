@@ -15,9 +15,9 @@ from tender_synopsis.pipeline import finish, generate
 from tender_synopsis.schema import Synopsis
 
 load_env()
-st.set_page_config(page_title="Tender Synopsis Generator", page_icon="📄", layout="wide")
-st.title("📄 Tender Synopsis Generator")
-st.caption(f"{org()['name']} · upload a tender (plus any corrigenda/annexures) → review → download")
+st.set_page_config(page_title="Synopsis Desk", page_icon="📄", layout="wide")
+st.title("📄 Synopsis Desk")
+st.caption(f"{org()['name']} · upload relevant documents (tender, corrigenda, conditions, site lists, annexures) → review → download")
 
 WORK = Path(tempfile.gettempdir()) / "tender_synopsis_app"
 WORK.mkdir(exist_ok=True)
@@ -53,10 +53,11 @@ with st.sidebar:
         except LLMError as e:
             st.error(str(e).replace("\n", "  \n"))
 
-files = st.file_uploader("Tender documents (PDF / DOCX)", type=["pdf", "docx"],
+files = st.file_uploader("Upload relevant documents", type=["pdf", "docx"],
                          accept_multiple_files=True)
+st.caption("**File types it can't read:** Excel BOQs, .zip, image files (.jpg/.png), old .doc. Convert these to PDF first, or I can add support.")
 
-if files and st.button("Generate synopsis", type="primary"):
+if files and st.button("Generate Document Synopsis", type="primary"):
     job = Path(tempfile.mkdtemp(dir=WORK))
     paths = []
     for f in files:
