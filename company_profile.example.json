@@ -1,0 +1,27 @@
+{
+  "_note": "Copy to company_profile.json and fill in real figures. This file is read ONLY on this computer - it is never sent to the AI. Amounts in rupees as plain numbers. Add one block per group company.",
+  "companies": [
+    {
+      "name": "Example Media Pvt Ltd",
+      "entity_type": "Private Limited Company",
+      "incorporated": "01.04.2012",
+      "turnover_by_fy": {"2022-23": 95000000, "2023-24": 110000000, "2024-25": 130000000},
+      "profit_by_fy": {"2022-23": 4000000, "2023-24": 6500000, "2024-25": 9000000},
+      "net_worth_inr": 60000000,
+      "net_worth_as_of": "31.03.2025",
+      "bank_solvency_inr": null,
+      "msme": true,
+      "startup": false,
+      "blacklisted": false,
+      "employees": 45,
+      "office_locations": ["Delhi", "Noida"],
+      "registrations": ["PAN", "GST", "Udyam (MSME)", "ISO 9001:2015", "EPF", "ESIC", "DAVP / CBC empanelment"],
+      "works": [
+        {"name": "MSME outreach events across Delhi", "client": "Govt. department", "value_inr": 12000000,
+         "completed": "31.03.2024", "keywords": ["event", "outreach", "msme", "b2b"]},
+        {"name": "OOH advertising campaign", "client": "PSU", "value_inr": 45000000,
+         "completed": "30.09.2023", "keywords": ["advertising", "ooh", "campaign", "media"]}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}History{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>History</h1><p>Every synopsis made here, newest first.</p></div>
+  <form method="get" style="min-width:min(320px,100%)">
+    <label for="q" class="small muted" style="margin-bottom:4px">Search by title or file name</label>
+    <input id="q" type="search" name="q" value="{{ q }}" placeholder="e.g. DSIIDC, gaushala, OOH">
+  </form>
+</div>
+<div class="panel">
+  {% if items %}
+  <div class="table-wrap"><table>
+    <tr><th>Synopsis</th><th>Made</th><th>Files</th><th>Checks</th><th>Status</th><th></th></tr>
+    {% for j in items %}
+    <tr>
+      <td><a href="{{ url_for('main.job', job_id=j.id) }}" class="t">{{ j.title or 'Untitled' }}</a></td>
+      <td class="small">{{ j.created | when }}</td>
+      <td class="small muted">{{ j.files | join(', ') }}</td>
+      <td class="small">{% if j.status == 'done' %}{{ j.counts.get('error', 0) }} to fix, {{ j.counts.get('warning', 0) }} to review{% endif %}</td>
+      <td><span class="badge {{ j.status }}">{{ {'done':'Ready','running':'Working','queued':'Waiting','failed':'Failed'}[j.status] }}</span></td>
+      <td>{% if j.status == 'done' %}<a class="btn ghost small" href="{{ url_for('main.download', job_id=j.id, kind='docx') }}">{{ icon('download', 14) }} Word</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% elif q %}
+  <div class="empty">Nothing matches “{{ q }}”. <a href="{{ url_for('main.history') }}">Show all</a></div>
+  {% else %}
+  <div class="empty">No synopses yet. <a href="{{ url_for('main.new') }}">Upload your first tender</a>.</div>
+  {% endif %}
+</div>
+{% endblock %}

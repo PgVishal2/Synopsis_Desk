@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ 'Set up' if setup else 'Sign in' }}{% endblock %}
+{% block body %}
+<div class="login">
+  <section class="intro">
+    <div>
+      {{ icon('brand', 40) }}
+      <h1 style="margin-top:28px">Tender synopses in minutes, not hours.</h1>
+      <p>Upload the tender, its corrigenda and annexures. Get a checked synopsis in {{ org_name }}'s house style, ready to share.</p>
+      <div class="doc-lines" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <p class="small">{{ org_name }} · internal tool</p>
+  </section>
+  <section class="form-side">
+    <form class="card" method="post">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, m in msgs %}<div class="flash {{ cat }}" role="status">{{ m }}</div>{% endfor %}
+      {% endwith %}
+      {% if setup %}
+        <h2>Create the master password</h2>
+        <p class="muted">This is the first sign-in. Everyone on the team will use this password. At least 8 characters.</p>
+        <div class="field"><label for="pw">Master password</label>
+          <input id="pw" type="password" name="password" autocomplete="new-password" required minlength="8" autofocus></div>
+        <div class="field"><label for="pw2">Type it again</label>
+          <input id="pw2" type="password" name="confirm" autocomplete="new-password" required minlength="8"></div>
+        <button class="btn" style="margin-top:20px;width:100%;justify-content:center">{{ icon('shield') }} Create password</button>
+      {% else %}
+        <h2>Sign in</h2>
+        <p class="muted">Enter the team's master password.</p>
+        <div class="field"><label for="pw">Master password</label>
+          <input id="pw" type="password" name="password" autocomplete="current-password" required autofocus></div>
+        <button class="btn" style="margin-top:20px;width:100%;justify-content:center">Sign in</button>
+      {% endif %}
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% macro render_block(b) -%}
+  {%- if b.type == 'subheading' %}<p><strong>{{ b.text | rich }}</strong></p>
+  {%- elif b.type == 'paragraph' %}<p>{{ b.text | rich }}</p>
+  {%- elif b.type in ('bullets', 'numbered') %}
+    {% if b.text %}<p>{{ b.text | rich }}</p>{% endif %}
+    <{{ 'ol' if b.type == 'numbered' else 'ul' }}>
+      {% for it in b['items'] %}<li>{{ it.text | rich }}
+        {% if it.sub_items %}<ul>{% for s in it.sub_items %}<li>{{ s | rich }}</li>{% endfor %}</ul>{% endif %}</li>{% endfor %}
+    </{{ 'ol' if b.type == 'numbered' else 'ul' }}>
+  {%- elif b.type in ('table', 'kv_table') %}
+    {% if b.text %}<p>{{ b.text | rich }}</p>{% endif %}
+    <div class="table-wrap"><table class="{{ 'kv' if b.type == 'kv_table' }}">
+      {% if b.headers %}<tr>{% for h in b.headers %}<th>{{ h | rich }}</th>{% endfor %}</tr>{% endif %}
+      {% for row in b.rows %}<tr>{% for c in row %}<td>{{ c | rich }}</td>{% endfor %}</tr>{% endfor %}
+    </table></div>
+  {%- endif %}
+{%- endmacro %}

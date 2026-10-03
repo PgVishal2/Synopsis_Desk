@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_status.html" import status_panel with context %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="welcome">
+  <div>
+    <h1>Make a tender synopsis</h1>
+    <p>Drop in the tender with its corrigenda, conditions and site lists. The app reads every page, writes the synopsis in house style and checks each figure against the source.</p>
+    <div class="facts-row">
+      <span><b>{{ stats.total }}</b> synopses made</span>
+      <span><b>{{ stats.month }}</b> this month</span>
+      {% if stats.avg_minutes %}<span><b>{{ stats.avg_minutes }}</b> min on average</span>{% endif %}
+      {% if stats.running %}<span><b>{{ stats.running }}</b> in progress</span>{% endif %}
+    </div>
+  </div>
+  <a class="btn" href="{{ url_for('main.new') }}">{{ icon('upload') }} Upload tender documents</a>
+</section>
+
+<div class="grid-2">
+  <div class="panel">
+    <h2>{{ icon('clock') }} Recent synopses</h2>
+    {% if recent %}
+    <ul class="list">
+      {% for j in recent %}
+      <li>
+        <div><a class="t" href="{{ url_for('main.job', job_id=j.id) }}">{{ j.title or (j.files | join(', ')) }}</a>
+          <div class="small muted">{{ j.created | when }} · {{ j.files | length }} file{{ 's' if j.files|length != 1 }}</div></div>
+        <span class="badge {{ j.status }}">{{ {'done':'Ready','running':'Working','queued':'Waiting','failed':'Failed'}[j.status] }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p style="margin:12px 0 0"><a href="{{ url_for('main.history') }}">See all synopses</a></p>
+    {% else %}
+    <div class="empty">No synopses yet. <a href="{{ url_for('main.new') }}">Upload your first tender</a>.</div>
+    {% endif %}
+  </div>
+  {{ status_panel(status) }}
+</div>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_blocks.html" import render_block %}
+{% block title %}{{ job.title or 'Synopsis' }}{% endblock %}
+{% block content %}
+
+{% if job.status in ('queued', 'running') %}
+<div class="panel" id="progress" data-job="{{ job.id }}" style="max-width:720px">
+  <h1 class="doc-title">Making the synopsis</h1>
+  <p class="muted">{{ job.files | join(', ') }}</p>
+  <ol class="steps" id="steps">
+    <li data-step="read"><span class="dot">1</span><span>Read the documents (scanned pages go through OCR)</span></li>
+    <li data-step="write"><span class="dot">2</span><span>Write the synopsis</span></li>
+    <li data-step="check"><span class="dot">3</span><span>Check figures against the tender</span></li>
+    <li data-step="done"><span class="dot">4</span><span>Ready to review and download</span></li>
+  </ol>
+  <div class="live-msg" id="live-msg" aria-live="polite">{{ job.step }}</div>
+  <p class="small muted" style="margin-top:12px">You can leave this page. The synopsis will appear in History when it's ready.</p>
+</div>
+
+{% elif job.status == 'failed' %}
+<div class="panel" style="max-width:760px">
+  <h1 class="doc-title">The synopsis couldn't be made</h1>
+  <div class="err-box">{{ job.error }}</div>
+  <p style="margin-top:16px">Files: {{ job.files | join(', ') }}</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <a class="btn" href="{{ url_for('main.new') }}">{{ icon('upload') }} Upload again</a>
+    <a class="btn ghost" href="{{ url_for('main.settings') }}">Check AI connection</a>
+  </div>
+</div>
+
+{% else %}
+{% set s = r.synopsis %}{% set p = s.profile %}
+{% set errs = r.issues | selectattr('severity', 'equalto', 'error') | list %}
+{% set warns = r.issues | selectattr('severity', 'equalto', 'warning') | list %}
+{% set infos = r.issues | selectattr('severity', 'equalto', 'info') | list %}
+
+<header style="margin-bottom:20px">
+  <h1 class="doc-title">{{ p.synopsis_title }}</h1>
+  <div class="chips">
+    <span class="chip">{{ p.document_type }}</span><span class="chip">{{ p.sector }}</span>
+    {% for v in p.relevant_verticals %}<span class="chip">{{ v }}</span>{% endfor %}
+  </div>
+  <p class="muted" style="margin:6px 0 0">{{ p.topic_one_line }}</p>
+  <div class="meta">
+    <div><small>Authority</small><b>{{ p.authority }}</b></div>
+    <div><small>Submission deadline</small><b>{{ p.submission_deadline }}</b></div>
+    <div><small>Estimated value</small><b>{{ p.estimated_value }}</b></div>
+    <div><small>Reference</small><b>{{ p.reference_no }}</b></div>
+  </div>
+</header>
+
+<div class="grid-2">
+  <article class="panel preview">
+    <h2>{{ icon('file') }} Synopsis preview</h2>
+    <p class="small muted">Yellow = critical items · blue = financial thresholds. The Word file has the same highlights.</p>
+    {% if s.key_facts_table %}
+    <div class="table-wrap"><table class="kv">
+      {% for row in s.key_facts_table %}<tr><td>{{ row[0] | rich }}</td><td>{{ row[1] | rich if row|length > 1 }}</td></tr>{% endfor %}
+    </table></div>{% endif %}
+    {% for sec in s.sections %}
+      <h3>{{ loop.index }}. {{ sec.heading | strip_num | rich }}</h3>
+      {% for b in sec.blocks %}{{ render_block(b) }}{% endfor %}
+    {% endfor %}
+    {% if s.summary %}<div class="summary"><strong>In summary:</strong> {{ s.summary | rich }}</div>{% endif %}
+  </article>
+
+  <aside class="stack sticky">
+    <div class="panel">
+      <h2>{{ icon('download') }} Download</h2>
+      <div class="downloads">
+        <a class="btn" href="{{ url_for('main.download', job_id=job.id, kind='docx') }}">{{ icon('download') }} Synopsis (Word)</a>
+        <a class="btn ghost" href="{{ url_for('main.download', job_id=job.id, kind='review') }}">Review sheet</a>
+        <a class="btn ghost" href="{{ url_for('main.download', job_id=job.id, kind='json') }}">Data (JSON)</a>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>{{ icon('alert') }} Checks</h2>
+      <div class="count-line">
+        <span class="badge {{ 'failed' if errs else 'done' }}">{{ errs|length }} to fix</span>
+        <span class="badge warn">{{ warns|length }} to review</span>
+        <span class="badge off">{{ infos|length }} notes</span>
+      </div>
+      {% if not errs %}<p class="small" style="color:#1F5068">No figure contradicts its source. Still read the synopsis once before sharing.</p>{% endif %}
+      <ul class="checks">
+        {% for i in errs + warns %}<li class="{{ i.severity }}"><b>{{ i.field }}</b>{% if i.page %} (p.{{ i.page }}){% endif %}: {{ i.message }}</li>{% endfor %}
+      </ul>
+      {% if infos %}<details class="more"><summary>{{ infos|length }} more notes</summary>
+        <ul class="checks">{% for i in infos %}<li class="info"><b>{{ i.field }}</b>: {{ i.message }}</li>{% endfor %}</ul></details>{% endif %}
+    </div>
+    {% if r.documents %}
+    <div class="panel">
+      <h2>{{ icon('file') }} Documents read</h2>
+      <p class="small muted">Most authoritative first. When documents disagree, the higher one wins.</p>
+      <ul class="list">{% for d in r.documents %}
+        <li><div><span class="t">{{ d.File }}</span><div class="small muted">{{ d.Role }}</div></div>
+          <span class="small muted">{{ d.Pages }} p{% if d['OCR pages'] %}, {{ d['OCR pages'] }} OCR{% endif %}</span></li>{% endfor %}</ul>
+    </div>{% endif %}
+  </aside>
+</div>
+
+<div class="panel" style="margin-top:18px">
+  <h2>{{ icon('search') }} Key facts and their sources</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Fact</th><th>Value</th><th>File</th><th>Page</th><th>Quote from the tender</th></tr>
+    {% for k in s.key_facts %}<tr><td>{{ k.field }}</td><td>{{ k.value | rich }}</td><td class="small">{{ k.file }}</td><td>{{ k.page }}</td><td class="small muted">“{{ k.quote }}”</td></tr>{% endfor %}
+  </table></div>
+  {% if s.review_notes %}
+  <h3 style="margin-top:20px">Notes for the reviewer</h3>
+  <ul>{% for n in s.review_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+</div>
+
+{% if s.requirements %}
+<div class="panel">
+  <h2>{{ icon('check') }} Eligibility conditions found</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Condition</th><th>Type</th><th>Must have</th><th>Source</th></tr>
+    {% for q in s.requirements %}<tr><td>{{ q.text }}</td><td class="small">{{ q.category | replace('_', ' ') }}</td>
+      <td>{{ 'Yes' if q.mandatory else 'No' }}</td><td class="small muted">{{ q.file }} p.{{ q.page }}</td></tr>{% endfor %}
+  </table></div>
+</div>{% endif %}
+
+<div class="panel" id="edit">
+  <h2>Edit before sharing</h2>
+  <p class="small muted">Change the title, the top table, the summary or the reviewer notes. Saving rebuilds the Word file and re-runs the source checks (no AI call).</p>
+  <form method="post" action="{{ url_for('main.edit', job_id=job.id) }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="field"><label for="title">Title</label><input id="title" type="text" name="title" value="{{ p.synopsis_title }}"></div>
+    <div class="field"><label>Top table</label>
+      <div id="kft">
+        {% for row in s.key_facts_table %}
+        <div class="kft-row"><input type="text" name="kft_label" value="{{ row[0] }}" aria-label="Label">
+          <textarea name="kft_value" rows="2" aria-label="Value">{{ row[1] if row|length > 1 }}</textarea>
+          <button type="button" class="btn ghost small" data-remove-row>Remove</button></div>
+        {% endfor %}
+      </div>
+      <button type="button" class="btn ghost small" id="add-row">{{ icon('plus', 14) }} Add row</button>
+      <p class="small muted" style="margin-top:6px">Use **bold**, ==yellow== and ++blue++ to highlight.</p>
+    </div>
+    <div class="field"><label for="summary">Summary</label><textarea id="summary" name="summary">{{ s.summary }}</textarea></div>
+    <div class="field"><label for="notes">Reviewer notes (one per line)</label><textarea id="notes" name="notes">{{ s.review_notes | join('\n') }}</textarea></div>
+    <details class="more"><summary>Advanced: edit everything as data</summary>
+      <label class="check" style="margin:8px 0"><input type="checkbox" name="use_json"> Save from this data instead of the fields above</label>
+      <textarea class="code" name="json" aria-label="Synopsis data">{{ json_text }}</textarea>
+    </details>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <button class="btn" type="submit">Save changes</button>
+    </div>
+  </form>
+</div>
+
+<form method="post" action="{{ url_for('main.delete', job_id=job.id) }}" style="margin-top:18px" data-confirm="Delete this synopsis and its files?">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <button class="btn danger small" type="submit">Delete this synopsis</button>
+</form>
+{% endif %}
+{% endblock %}

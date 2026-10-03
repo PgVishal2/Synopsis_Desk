@@ -1,0 +1,19 @@
+{% macro status_panel(status) -%}
+<div class="panel">
+  <h2>{{ icon('shield') }} System status</h2>
+  {% for p in status.providers %}
+  <div class="status-row"><span>{{ 'Main AI' if loop.first else 'Backup ' ~ loop.index0 }}</span>
+    <span>{% if p.ready %}<span class="badge done">Ready</span>{% else %}<span class="badge failed">No key</span>{% endif %}
+      <span class="prov">{{ p.label }}</span></span></div>
+  {% endfor %}
+  <div class="status-row"><span>Cloud OCR (OCR.space)</span>
+    <span>{% if not status.ocr.ocr_space %}<span class="badge off">Off</span>
+      {% elif status.ocr.engine == 'tesseract' %}<span class="badge off">Disabled</span>
+      {% elif status.ocr.ocr_space_paused_seconds %}<span class="badge warn">Paused {{ (status.ocr.ocr_space_paused_seconds // 60) + 1 }} min</span>
+      {% else %}<span class="badge done">On</span>{% endif %}</span></div>
+  <div class="status-row"><span>Backup OCR (Tesseract)</span>
+    <span>{% if status.ocr.tesseract %}<span class="badge done">Ready · {{ status.ocr.tesseract_langs | reject('equalto', 'osd') | join(', ') }}</span>
+      {% else %}<span class="badge failed">Missing</span>{% endif %}</span></div>
+  {% if status.ocr.ocr_space_last_error %}<p class="small muted" style="margin-top:8px">Last cloud OCR problem: {{ status.ocr.ocr_space_last_error }}</p>{% endif %}
+</div>
+{%- endmacro %}

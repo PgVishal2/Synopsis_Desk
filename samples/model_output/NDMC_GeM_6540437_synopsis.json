@@ -1,0 +1,297 @@
+{
+  "profile": {
+    "synopsis_title": "Tender Synopsis – Procurement of CNG Mechanical Road Sweepers (NDMC)",
+    "topic_one_line": "Supply, testing and commissioning of 5 CNG truck-mounted mechanical road sweepers for NDMC",
+    "document_type": "GeM Bid",
+    "sector": "Supply / Equipment",
+    "commercial_model": "L1 – total value wise evaluation, two-packet bid",
+    "authority": "New Delhi Municipal Council (NDMC)",
+    "parent_body": "Ministry of Home Affairs, Department of Home",
+    "reference_no": "GEM/2025/B/6540437",
+    "portal": "GeM (Government e-Marketplace)",
+    "date_of_issue": "06.08.2025",
+    "submission_deadline": "01.09.2025 18:00",
+    "estimated_value": "Not disclosed",
+    "location": "Office of Chief Engineer (Civil-I), 15th Floor, NDMC, Palika Kendra, New Delhi-110001",
+    "prabhatam_verticals": [
+      "Infrastructure"
+    ],
+    "relevance_note": "Municipal equipment supply – relevant only if a group company supplies or partners with a sweeper OEM."
+  },
+  "key_facts_table": [
+    [
+      "Authority",
+      "New Delhi Municipal Council (NDMC), Ministry of Home Affairs"
+    ],
+    [
+      "Bid Number",
+      "**GEM/2025/B/6540437** dated 06.08.2025"
+    ],
+    [
+      "Item",
+      "**05 nos.** CNG operated new Mechanical Road Sweepers (Truck Mounted) – supply, testing & commissioning"
+    ],
+    [
+      "==EMD==",
+      "==**₹11,09,205** (exemption for eligible MSE manufacturers)=="
+    ],
+    [
+      "==ePBG==",
+      "==**5%** of contract value, valid **12 months**=="
+    ],
+    [
+      "Bid Type / Evaluation",
+      "Two Packet (Technical + Financial); **total value wise**; no reverse auction"
+    ],
+    [
+      "Delivery",
+      "**90 days**"
+    ],
+    [
+      "Bid Validity",
+      "**75 days** from bid end date"
+    ]
+  ],
+  "sections": [
+    {
+      "key": "key_dates",
+      "heading": "Key Dates",
+      "blocks": [
+        {
+          "type": "table",
+          "text": "",
+          "headers": [
+            "Activity",
+            "Date & Time"
+          ],
+          "rows": [
+            [
+              "Bid Published",
+              "06.08.2025"
+            ],
+            [
+              "Pre-Bid Meeting",
+              "18.08.2025, 15:00 Hrs – Office of Chief Engineer (Civil-I), 16th Floor, Palika Kendra"
+            ],
+            [
+              "==Bid End==",
+              "==**01.09.2025, 18:00 Hrs**=="
+            ],
+            [
+              "Bid Opening",
+              "01.09.2025, 18:30 Hrs"
+            ]
+          ],
+          "items": []
+        }
+      ]
+    },
+    {
+      "key": "mse_startup_exemptions",
+      "heading": "Eligibility & Exemptions",
+      "blocks": [
+        {
+          "type": "bullets",
+          "text": "",
+          "headers": [],
+          "rows": [],
+          "items": [
+            {
+              "text": "Documents required: experience criteria, bidder turnover, certificates (as per ATC), **OEM authorisation**, OEM annual turnover.",
+              "sub_items": []
+            },
+            {
+              "text": "==**MSEs:** exempt from experience and turnover criteria== (Udyam proof to be uploaded); EMD exemption only for MSE **manufacturers**, not traders.",
+              "sub_items": []
+            },
+            {
+              "text": "**Startups:** no exemption from experience and turnover.",
+              "sub_items": []
+            },
+            {
+              "text": "Bidders from countries sharing a land border with India must be registered with the Competent Authority.",
+              "sub_items": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "make_in_india",
+      "heading": "Make in India & Purchase Preference",
+      "blocks": [
+        {
+          "type": "bullets",
+          "text": "",
+          "headers": [],
+          "rows": [],
+          "items": [
+            {
+              "text": "Minimum local content: **50%** for Class-1 and **20%** for Class-2 local supplier; OEM certificate of local content required.",
+              "sub_items": []
+            },
+            {
+              "text": "MII purchase preference: **Yes** (Class-1 local suppliers).",
+              "sub_items": []
+            },
+            {
+              "text": "MSE purchase preference: MSE quoting within **L1 + 15%** may match L1 and get **25%** of the quantity.",
+              "sub_items": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "commercial_terms",
+      "heading": "Contract Terms",
+      "blocks": [
+        {
+          "type": "bullets",
+          "text": "",
+          "headers": [],
+          "rows": [],
+          "items": [
+            {
+              "text": "==**Option clause:** quantity may be increased or decreased by up to **25%** at contract stage, and increased by up to 25% during the contract at the same rates.==",
+              "sub_items": []
+            },
+            {
+              "text": "Bid splitting: not applied. Inspection by GeM-empanelled agency: not required.",
+              "sub_items": []
+            },
+            {
+              "text": "Arbitration and mediation clauses: **not included**.",
+              "sub_items": []
+            },
+            {
+              "text": "Auto-extension: bid extends by **7 days** unless at least 1 bid is received.",
+              "sub_items": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "consignee_delivery",
+      "heading": "Consignee / Delivery",
+      "blocks": [
+        {
+          "type": "kv_table",
+          "text": "",
+          "headers": [
+            "Particular",
+            "Details"
+          ],
+          "rows": [
+            [
+              "Consignee",
+              "Harkesh Meena, EE (RIP)"
+            ],
+            [
+              "Address",
+              "O/o Chief Engineer (Civil-I), 15th Floor, NDMC, Palika Kendra, New Delhi-110001"
+            ],
+            [
+              "Quantity / Delivery",
+              "**5 units** within **90 days**"
+            ]
+          ],
+          "items": []
+        }
+      ]
+    }
+  ],
+  "summary": "NDMC is buying 5 CNG truck-mounted mechanical road sweepers through GeM bid GEM/2025/B/6540437, closing 01.09.2025 at 18:00 Hrs. EMD is ₹11,09,205 and ePBG 5% for 12 months, with strong preference for MSEs and Make in India suppliers (50% local content for Class-1). OEM authorisation and the experience/turnover documents in the ATC decide eligibility for non-MSE bidders.",
+  "key_facts": [
+    {
+      "field": "reference_no",
+      "value": "GEM/2025/B/6540437",
+      "file": "",
+      "page": 1,
+      "quote": "Bid Number: GEM/2025/B/6540437"
+    },
+    {
+      "field": "date_of_issue",
+      "value": "06.08.2025",
+      "file": "",
+      "page": 1,
+      "quote": "Dated: 06-08-2025"
+    },
+    {
+      "field": "submission_deadline",
+      "value": "01.09.2025, 18:00",
+      "file": "",
+      "page": 1,
+      "quote": "Bid End Date/Time 01-09-2025 18:00:00"
+    },
+    {
+      "field": "bid_opening",
+      "value": "01.09.2025, 18:30",
+      "file": "",
+      "page": 1,
+      "quote": "01-09-2025 18:30:00"
+    },
+    {
+      "field": "bid_validity",
+      "value": "75 days",
+      "file": "",
+      "page": 1,
+      "quote": "75 (Days)"
+    },
+    {
+      "field": "emd",
+      "value": "₹11,09,205",
+      "file": "",
+      "page": 2,
+      "quote": "EMD Amount 1109205"
+    },
+    {
+      "field": "pbg",
+      "value": "5%",
+      "file": "",
+      "page": 2,
+      "quote": "ePBG Percentage(%) 5.00"
+    },
+    {
+      "field": "pre_bid",
+      "value": "18.08.2025, 15:00",
+      "file": "",
+      "page": 4,
+      "quote": "18-08-2025 15:00:00"
+    },
+    {
+      "field": "local_content",
+      "value": "50% Class-1 / 20% Class-2",
+      "file": "",
+      "page": 4,
+      "quote": "Minimum 50% and 20% Local"
+    },
+    {
+      "field": "purchase_preference",
+      "value": "L1 + 15%",
+      "file": "",
+      "page": 4,
+      "quote": "L-1+ 15% (Selected by Buyer) of margin of purchase preference"
+    },
+    {
+      "field": "mse_share",
+      "value": "25% of quantity",
+      "file": "",
+      "page": 4,
+      "quote": "L-1 price and contract will be awarded for 25%"
+    },
+    {
+      "field": "option_clause",
+      "value": "up to 25%",
+      "file": "",
+      "page": 5,
+      "quote": "increase or decrease the quantity to be ordered up to 25 percent of bid quantity"
+    }
+  ],
+  "review_notes": [
+    "Pre-bid venue says 16th Floor Palika Kendra (p.4) while the consignee office is on the 15th Floor (p.4) – confirm the meeting room.",
+    "Technical specifications and the NIT/ATC are separate GeM attachments (buyer specification document) not included in this PDF – upload them too for experience/turnover thresholds.",
+    "Estimated value is not shown on the GeM bid document."
+  ]
+}

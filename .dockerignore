@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+data/
+output/
+**/__pycache__/
+.pytest_cache/
+*.pyc
+company_profile.json
+samples/
+tests/
+*.bat
