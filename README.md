@@ -1,177 +1,277 @@
-# Tender Synopsis Generator (v2)
+# Synopsis Desk
 
-Upload a tender (PDF or DOCX, including scanned PDFs, corrigenda and annexures) and get a
-ready-to-share Word synopsis in the house style, with a review sheet that lists anything to check.
+Upload the documents of any tender (NIT, RFP, EOI, GeM bid, e-auction catalogue, corrigenda,
+special conditions, site lists, policies – text or scanned) and get a ready-to-share **Word
+synopsis** in your house style, plus a **review sheet** that shows where every key figure came
+from and what a person should check before bidding.
 
 ```
-Tender files → Read (text + OCR) → Condense if long → AI extracts structured JSON → Checks
-            → Word synopsis + review sheet → Bid / no-bid check against your company profile
+Tender files ─► Read (text + OCR) ─► Label each file ─► Condense if very long ─► AI writes structured data
+            ─► Automatic checks ─► Word synopsis + review sheet ─► Edit in the browser if needed
 ```
 
-Works for any kind of tender: works, supply, services, consultancy, GeM, EOI, empanelment, PPP,
-licence / advertising rights, auction, lease, IBC Form G, disinvestment, multi-volume RFPs.
+Works for any tender type: works / EPC, supply, services, consultancy, manpower, GeM (service,
+product, BOQ, custom), EOI, empanelment, rate contract, PPP / concession, licence / advertising
+rights, e-auction, lease / allotment, IBC Form G, disinvestment, multi-volume RFPs.
 
-### What's new in v2
-| Gap in v1 | Fix |
+---
+
+## 1. What you get
+
+| Output | What it is |
 |---|---|
-| Long / multi-volume tenders overflowed the model | `condense.py`: key pages (first pages, corrigenda, highest-scoring pages for dates, EMD, eligibility, scope…) go in word for word; other relevant pages are read in parts as notes with page + quote; irrelevant pages (drawings, BOQ rows, blank formats) are skipped and listed in the review sheet |
-| Fixed lists of tender types / sectors / Prabhatam verticals | Free-text classification with suggestions; organisation name, header and verticals in `organisation.json` |
-| No eligibility assessment | AI lists every requirement (amount, count, years, keywords, page, quote); `assess.py` compares them **on this computer** with `company_profile.json` → `*_bid_check.docx/.md` per group company |
-| One provider = one point of failure | Up to 3 **fallback providers** (`LLM2_` … `LLM4_` in `.env`, e.g. Groq, OpenRouter, Mistral): any failure moves the request to the next one; providers out of daily quota or with a bad key are skipped for the rest of the run; the review sheet says which provider was used |
-| Several documents for one tender (NIT, special conditions, site lists, standard conditions, policies) were treated as equal | Each file gets a **role**; the AI is told corrigendum > main tender/catalogue > special conditions & site lists > standard conditions > policy, uses policies only as background, writes "As per lot details (not uploaded)" instead of "Not prescribed", and flags mismatches between site lists. Long tenders read tender-specific pages in full first. The review sheet and app list each file with its role |
-| Scanned tables inside text PDFs, sideways pages, e-signature stamps | Pages whose only text is a signature stamp, or that are mostly one big image, are OCR'd; sideways pages are straightened; "Signature Not Verified / Digitally signed by…" text is removed. A warning appears if no main tender / NIT / catalogue was uploaded |
-| Free models broke the strict JSON format | Fallback chain (strict schema → JSON mode → plain text), lenient parsing, automatic repair rounds with the validation errors, waits and retries on rate limits |
+| **Synopsis (.docx)** | Key facts table, numbered sections chosen for the tender type, *Documents to Submit* checklist (detailed mode), *Quick Decision* table and a *✅ In Summary* |
+| **Review sheet (.md)** | Errors ❌ / warnings ⚠️ / info ℹ️, every key fact with file, page and exact quote, the documents read and their roles, the AI provider used and tokens spent |
+| **Data (.json)** | The synopsis as editable data – edit and rebuild the Word file without another AI call |
 
-## Web version (Flask, for Railway)
-A team web app with a master-password login, history and live progress lives in `webapp/` +
-`wsgi.py`. Run locally: `pip install -r requirements-web.txt` then `python -m flask --app wsgi run`.
-Deploy: see **DEPLOY_RAILWAY.md**.
+**Two lengths**
 
-## 1. Setup (once)
+| Mode | Length | Content |
+|---|---|---|
+| **Compact** | about 2–3 pages | Key facts, dates table, one eligibility table, short scope, money & terms table, Quick Decision |
+| **Detailed** | about 5–6 pages | Full eligibility, scope & deliverables, evaluation marks, payment, penalties, securities, other terms, Documents to Submit, Quick Decision |
 
-1. Install **Python 3.10+**.
-2. (Optional) Install **Tesseract OCR** as the local fallback for scanned PDFs:
-   - Windows: install from https://github.com/UB-Mannheim/tesseract/wiki (tick *Hindi* under additional languages).
-   - Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-hin`
-3. In this folder:
-   ```
-   pip install -r requirements.txt
-   copy .env.example .env        (Mac/Linux: cp .env.example .env)
-   ```
-4. Open `.env` and paste your API key into `LLM_API_KEY`. Optionally fill one to three fallback
-   providers (`LLM2_…`, `LLM3_…`, `LLM4_…` – see the FALLBACK block in `.env.example`); the
-   **Test AI connection** button checks every provider. For a **free** start use Google Gemini
-   (Option A in `.env.example`; key from https://aistudio.google.com/apikey, no card needed).
-5. For scanned PDFs, add an OCR.Space API key to `.env` as `OCR_SPACE_API_KEY=your-key`.
-   Get a key at https://ocr.space/ocrapi. OCR.Space is tried first; if it fails or is not
-   configured, the app uses Tesseract locally when available. Set `OCR_SPACE_LANGUAGE=eng`
-   to select the cloud OCR language; OCR.Space accepts one language code per request.
-   Page images are compressed to stay under OCR.Space's 1 MB free-plan limit;
-   `OCR_SPACE_ENGINE` (default 2) picks the OCR.Space engine.
+Both modes are **table-first**: anything with 3 or more similar items becomes a table; bullets
+hold one short fact each; each fact appears once; sources are shown briefly as "(p.12)".
 
-**Windows shortcut:** double-click `setup_windows.bat` once, then `run_windows.bat` every time.
+**Highlights:** 🟨 yellow = items that decide bid / no-bid (deadline, EMD, contract period, JV rule,
+conflicts, relaxations) · 🟦 cyan = financial thresholds (turnover, net worth, project-value
+experience) · **bold** = key figures. Cyan is applied automatically if the AI forgets.
 
-## 2. Use it
+**Quick Decision** – plain Yes / No answers with the figure: turnover required? MSE / Startup
+relaxation? EMD? security? experience? JV allowed? contract period? evaluation? If the closing date
+has passed, the app itself adds *"Bid still open? – No"*.
 
-**Web app (for the team):**
-```
-streamlit run app.py
-```
-Opens in the browser → upload tender file(s) → **Generate** → read the checks → edit if needed → **Download .docx**.
+---
 
-**Command line:**
-```
-python -m tender_synopsis generate tender.pdf corrigendum.pdf -o output --mode detailed
-python -m tender_synopsis generate tender.pdf --mode compact
-python -m tender_synopsis rerender output/tender_synopsis.json --tender tender.pdf   # after editing the JSON
-python -m tender_synopsis text tender.pdf                                           # see what the AI reads
-```
+## 2. Using the website
 
-Each run writes: `*_synopsis.docx` (to share), `*_synopsis_review.md` (checks and
-sources), `*_synopsis.json` (editable data) and, when a company profile exists,
-`*_synopsis_bid_check.docx` / `.md` (internal eligibility check).
+1. Log in with the master password.
+2. **New synopsis** → drop **all** files of the tender together (PDF, Word .docx or .txt) →
+   choose *Compact* or *Detailed* → **Generate**. Progress is shown live.
+3. Read the checks on the result page (❌ first, then ⚠️).
+4. **Edit before sharing** – change the title, top table, summary or notes; or use
+   *Advanced: edit everything as data* to paste corrected data. Saving rebuilds the Word file and
+   re-runs the checks **without** an AI call.
+5. Download the Word file / review sheet. **History** keeps every past synopsis.
 
-```
-python -m tender_synopsis assess output/tender_synopsis.json            # re-run the bid check only
-python -m tender_synopsis generate tender.pdf --profile other_profile.json
-```
+**Tips for good results**
+- Upload every file of the tender in one go: main NIT / catalogue, corrigenda, special conditions,
+  site lists, BOQ, standard conditions, policies. Each file gets a role automatically
+  (corrigendum > main tender > special conditions & lists > standard conditions > policy).
+- Portal bids (GeM, IREPS, CPPP…) keep the scope, ATC, payment terms or BOQ in **linked files**.
+  The review sheet lists any linked file you have not uploaded – download and add them.
+- Give downloaded files clear names (`ScopeOfWork.pdf`, `ATC.pdf`, `LotDetails.pdf`) – names help
+  the app label them.
+- Portal pages you only have as a screenshot (e.g. IREPS lot details): print them to PDF first.
 
-## 2a. Bid / no-bid check (optional)
+---
 
-1. Copy `company_profile.example.json` to `company_profile.json` and fill in each group company:
-   turnover and profit by year, net worth, incorporation date, registrations, offices,
-   employees, past works (value, completion date, keywords).
-2. That's it – every synopsis now comes with a bid check. In the web app you can also upload a
-   profile file in the sidebar.
-
-**Privacy:** the AI only reads the tender. The comparison with company figures is plain Python on
-this computer; `company_profile.json` is never sent to any AI provider (and is in `.gitignore`).
-
-Statuses: ✅ met · ❌ not met · ⚠️ check (e.g. "similar work" wording needs judgement) ·
-❔ data missing in profile · ℹ️ info (JV rule, EMD, exemptions). Alternatives such as
-"1 work of 80% / 2 of 60% / 3 of 40%" pass if any one passes. Not automated: escalation of past
-project values, percentage-based thresholds without a stated base – these show as ⚠️.
-
-## 3. What the synopsis contains
-
-- **Auto-detected profile:** title, one-line topic, document type (NIT, GeM, RFP, EOI, PPP, licence
-  / rights, e-auction, IBC Form G… or any other accurate label), sector, commercial model
-  (L1 / QCBS / H1 / zero-cost PPP), authority, reference number, portal, dates, value, location and
-  which of your **verticals** (from `organisation.json`) it fits.
-- **Key facts table**, then numbered sections chosen for the tender type (core sections always,
-  extra sections for GeM, EOI, PPP, advertising rights, IBC and so on) and a **✅ In Summary** paragraph.
-- **Highlights:** yellow = critical items (deadline, EMD, JV rule, contract period…),
-  cyan = financial eligibility thresholds (turnover, net worth…).
-
-## 4. How accuracy is protected
+## 3. How accuracy is protected
 
 | Check | What it does |
 |---|---|
-| Source quote | Every key date and amount carries a page number and exact quote; the code confirms the quote exists in the tender |
-| Number match | The numbers in each value must appear in its quote (₹4 Crore = 4,00,00,000; dates in any format) |
-| Second AI check | A second, cheap call re-checks critical figures against their source pages |
-| Dates | Valid dates; deadline after issue date; flags past deadlines |
-| Model notes | The AI must report conflicts, typos, corrigenda and missing information |
-| OCR warning | Scanned pages are flagged so figures get a human look |
+| Source quotes | Every key date, amount and requirement carries a file, page and exact quote; the app confirms the quote exists in the documents |
+| Number match | Numbers in each value must appear in its quote (₹4 crore = 4,00,00,000; any date format) |
+| **Lakh / crore slip** | An amount 10×, 100× or 1000× off its source becomes a red ❌ (e.g. 290000000 written as ₹2.9 crore) |
+| Second AI check | A short second call re-checks critical figures against their page (and the next page); "could not confirm" is a ⚠️, a different number is a ❌ |
+| Conflicts between files | Different values in different files are shown side by side ("36 months (NIT) vs 1 year (GeM)"), never silently merged |
+| No guessing | Anything the documents don't say is written "Not stated" – JV, exemptions or periods are never assumed; policy defaults are labelled as such |
+| Fine print | The AI is told to compare figures inside forms / certificate formats with the eligibility clauses and to look for gaps in marks / slab tables |
+| Dates | Valid calendar dates; deadline after issue date; closed bids flagged in the review sheet **and** the synopsis |
+| Missing files | Warns when no main tender / catalogue was uploaded, and when a PDF links to documents that were not uploaded |
+| OCR pages | Pages read by OCR are listed so their figures get a human look |
+| Empty sections / broken highlights | Detected and repaired or flagged automatically |
 
-Nothing is guessed: missing items show as "Not prescribed" / "To be notified".
+> The synopsis is a fast, checked first draft. **A person should always read the ❌ and ⚠️ items
+> before a bid decision.**
 
-## 5. Customise without coding much
+---
+
+## 4. AI providers
+
+Any OpenAI-compatible API works. One main provider plus up to three backups:
+
+| Slot | Recommended | Role |
+|---|---|---|
+| `LLM_` | **DeepSeek V4.1 Flash** (paid, `deepseek-flash`, `https://api.deepseek.com`) | Main – used for every run |
+| `LLM2_` | Google Gemini (free tier) | Backup 1 |
+| `LLM3_` | OpenRouter free model | Backup 2 |
+| `LLM4_` | optional | Backup 3 |
+
+- A backup is used only if the provider before it fails (no balance, limit reached, outage). The
+  review sheet shows which provider wrote the synopsis and why others were skipped.
+- Free tiers often hit their limits on 40–90k-token tenders and are weaker on lakh / crore maths –
+  keep a paid main provider for real work.
+- Do not use providers whose free access is "trial / prototyping only" (e.g. NVIDIA's free API)
+  on the live website.
+- **Settings → Test now** checks every configured provider.
+
+**Cost (DeepSeek V4.1 Flash):** about **₹2–4.5 per 50–60 page tender**; small single NITs well
+under ₹1. Off-peak hours (weekdays outside 6:30–9:30 AM and 11:30 AM–3:30 PM IST, and all
+weekends) cost half. Re-running the same files is cheaper (cached input). OCR costs nothing extra.
+
+---
+
+## 5. OCR (scanned pages)
+
+1. Text pages are read directly – no OCR.
+2. Scanned pages, pages that are mostly an image, and pages whose only text is a digital-signature
+   stamp go to **OCR.space** (if `OCR_SPACE_API_KEY` is set).
+3. If OCR.space fails for a page, **Tesseract** (English + Hindi, installed in the server image)
+   reads it instead. After 3 failures in a row OCR.space is paused for 10 minutes.
+4. Sideways pages are straightened; "Digitally signed by… / Signature Not Verified" text is removed.
+5. `OCR_ENGINE=tesseract` uses Tesseract only. OCR results are cached.
+
+---
+
+## 6. Deploying on Railway
+
+Full steps: **DEPLOY_RAILWAY.md**. In short:
+
+1. Push the project to a **private** GitHub repo (`.env` and `company_profile.json` are ignored).
+2. Railway → New Project → Deploy from GitHub. The `Dockerfile` installs Python + Tesseract.
+3. Add a **volume mounted at `/data`** – it holds the database and all synopses.
+4. Add the variables below → Deploy → Settings → Networking → Generate domain.
+5. Open the site: create the master password (or set `MASTER_PASSWORD` first).
+6. Set a usage limit in Railway (e.g. $10). One app normally fits the Hobby plan's included usage.
+
+To update: push to GitHub; Railway rebuilds. A synopsis running during a redeploy is marked failed –
+run it again.
+
+**Variables**
+
+| Variable | Purpose |
+|---|---|
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | Main AI provider |
+| `LLM2_…`, `LLM3_…`, `LLM4_…` | Backup providers (same three variables each) |
+| `LLM_MAX_INPUT_TOKENS` | Text sent in one call (e.g. `120000`; above it, long tenders are condensed) |
+| `LLM_JSON_MODE` | Leave unset (auto) unless told otherwise |
+| `GEMINI_KEY_HEADER` | Only for Google keys starting `AQ.` if Gemini rejects them (`bearer` / `header`) |
+| `OCR_SPACE_API_KEY` | Cloud OCR (optional – Tesseract is always the backup) |
+| `OCR_ENGINE`, `OCR_WORKERS`, `OCR_SPACE_LANGUAGE`, `OCR_SPACE_ENGINE` | OCR tuning (optional) |
+| `MASTER_PASSWORD` | Sets the first master password |
+| `SECRET_KEY` | Optional; otherwise generated and stored in the database |
+| `DATA_DIR` | Storage folder (`/data` in the Docker image) |
+| `JOB_WORKERS` | Synopses at the same time (`1` recommended) |
+| `KEEP_DAYS` | Days of history kept (default 90) |
+| `MAX_UPLOAD_MB` | Upload limit (default 100) |
+| `SESSION_HOURS` | Login length (default 12) |
+| `ENABLE_BID_CHECK` | Keep off on the cloud (see section 9) |
+
+---
+
+## 7. What is stored
+
+All on the `/data` volume:
+
+| Location | Contents |
+|---|---|
+| `/data/app.db` (SQLite) | Master-password **hash** and session key; one row per synopsis (date, title, file names, mode, status, provider, tokens, check counts) |
+| `/data/jobs/<id>/input/` | Uploaded tender files |
+| `/data/jobs/<id>/out/` | Word synopsis, review sheet, data (.json), checks and documents lists |
+
+Not stored: API keys (only in Railway Variables) and company figures. See everything from the
+**History** page; delete old jobs there or set `KEEP_DAYS`. Railway → Service → Volumes shows usage.
+
+---
+
+## 8. Customise
 
 | To change | Edit |
 |---|---|
-| Organisation name, header line, verticals | `organisation.json` |
-| Company figures for the bid check | `company_profile.json` (local only) |
-| Long-tender limits, retries, JSON mode | `.env` (see the optional block in `.env.example`) |
-| Writing style / highlight rules | `tender_synopsis/prompts.py` → `HOUSE_RULES` |
-| Sections per tender type | `tender_synopsis/prompts.py` → `SECTION_LIBRARY` |
-| Style references | Drop approved synopses (.docx) into `style_examples/` (up to 4 are used) |
-| AI model / provider | `.env` → `LLM_MODEL`, `LLM_BASE_URL` (any OpenAI-compatible API) |
-| Word look (fonts, colours, header) | `tender_synopsis/render.py` (top of file) |
+| Organisation name, header line, verticals (used for "relevant to") | `organisation.json` – no code |
+| Writing style, highlight rules, accuracy rules | `tender_synopsis/prompts.py` → `HOUSE_RULES` |
+| Sections per tender type, Compact / Detailed lengths | `tender_synopsis/prompts.py` → `SECTION_LIBRARY`, `DETAIL_LEVELS` |
+| Document types and sectors offered to the AI | `tender_synopsis/config.py` |
+| Style references | Approved synopses (.docx) in `style_examples/` (up to 4 used) |
+| Word look (fonts, colours, header) | `tender_synopsis/render.py` |
+| Website colours | `webapp/static/app.css` |
 
-## 6. Cost and speed (GPT-6 Luna)
+---
 
-About ₹1–3 per tender (50-page tender ≈ 25k tokens in). Text PDFs take under a minute; scanned
-PDFs need about 2 seconds per page for OCR (results are cached).
-
-## 7. Folder layout
+## 9. Running locally (optional)
 
 ```
-app.py                     web app
-tender_synopsis/
-  ingest.py                PDF/DOCX reading, OCR, Hindi clean-up, cache
-  condense.py              long-tender handling (key pages + notes)
-  assess.py                local bid / no-bid check against company_profile.json
-  config.py                organisation settings
-  prompts.py               house rules + section library
-  schema.py                JSON structure the AI must return
-  llm.py                   provider-agnostic AI call
-  verify.py                accuracy checks
-  render.py                Word output
-  pipeline.py              end-to-end flow
-style_examples/            team's approved synopses (style references)
-samples/                   test tenders and example outputs
-tests/                     offline tests: python -m pytest tests
+pip install -r requirements.txt            # Python 3.10+
+copy .env.example .env                     # Mac/Linux: cp; then fill in LLM_API_KEY etc.
+python -m flask --app wsgi run             # website  (pip install -r requirements-web.txt)
+streamlit run app.py                       # older single-user app
 ```
 
-## 8. Known limits
+For OCR on your own computer install Tesseract (Windows: UB-Mannheim build, tick *Hindi*;
+Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-hin`). Windows shortcuts:
+`setup_windows.bat` once, then `run_windows.bat`.
 
-- Always have a person read the review sheet before sharing; the checks catch most errors, not all.
-- Long tenders: the review sheet lists skipped pages – glance at them if something seems missing.
-- The bid check is only as good as `company_profile.json`; "similar work" is matched by keywords.
-- GeM bids reference separate attachments (specifications, ATC); upload them with the bid.
-- Very poor scans may OCR badly; the review sheet flags them.
+**Command line**
+```
+python -m tender_synopsis generate nit.pdf corrigendum.pdf -o output --mode detailed
+python -m tender_synopsis generate nit.pdf --mode compact
+python -m tender_synopsis rerender output/nit_synopsis.json --tender nit.pdf   # after editing the JSON
+python -m tender_synopsis text nit.pdf                                        # see what the AI reads
+python -m tender_synopsis check                                               # test the AI key
+```
 
-## 9. Troubleshooting
+**Bid / no-bid check (local only):** copy `company_profile.example.json` to
+`company_profile.json` and fill in your companies' figures. Each synopsis then gets a
+`*_bid_check.docx` comparing every requirement with your figures (✅ met · ❌ not met · ⚠️ check ·
+❔ data missing). This comparison is plain Python on your computer – company data is never sent
+to an AI. It is **off on the website** (`ENABLE_BID_CHECK`) so company figures never go to the cloud.
+
+**Tests:** `python -m pytest tests` (offline; the AI is mocked).
+
+---
+
+## 10. Folder layout
+
+```
+wsgi.py, webapp/            website (Flask): login, new synopsis, history, settings
+  db.py  auth.py  jobs.py  views.py  templates/  static/
+tender_synopsis/            the engine (used by the website, Streamlit app and command line)
+  ingest.py                 PDF / DOCX reading, OCR, file roles, linked-file detection
+  condense.py               very long tenders: key pages in full + notes from the rest
+  prompts.py                house rules, section library, Compact / Detailed
+  schema.py                 data structure the AI must return
+  llm.py                    AI call with backup providers
+  verify.py                 accuracy checks
+  render.py                 Word output
+  pipeline.py               end-to-end flow, review sheet
+  assess.py                 local bid / no-bid check
+  config.py                 organisation settings, document types, sectors
+app.py                      Streamlit app (local)
+organisation.json           organisation name and verticals
+Dockerfile, railway.json    Railway deployment (Python + Tesseract)
+DEPLOY_RAILWAY.md           deployment guide
+style_examples/  samples/  tests/
+```
+
+---
+
+## 11. Known limits
+
+- Always have a person read the review sheet (❌ and ⚠️) before sharing or bidding.
+- Upload formats: PDF, Word (.docx), text. **Excel (BOQ) files and images are not read yet** –
+  print images to PDF; open BOQs separately.
+- Some Hindi PDFs use old fonts whose text comes out garbled; such pages may need re-scanning or
+  an English copy.
+- Linked portal documents are not downloaded automatically – the app tells you which are missing.
+- Subtle fine-print issues (a figure inside a form template, gaps in a marks table) are asked for
+  but not always caught.
+- Very long tenders are condensed; the review sheet lists skipped pages.
+
+---
+
+## 12. Troubleshooting
 
 | Message | Fix |
 |---|---|
-| "Please pass a valid API key" / "rejected the API key" | Double-click `check_key_windows.bat` (or click **Test AI connection** in the app). It shows the first/last 4 characters and length of the key being used. Gemini keys start with `AIza` and are 39 characters. Keep exactly one `LLM_API_KEY=` line in `.env`. |
-| "Gemini keys start with 'AIza'…" for a key starting `AQ.` | Fixed in this version – `AQ.` is Google's new key format and is accepted. If Gemini still rejects it, set `GEMINI_KEY_HEADER=bearer` (or `header`) in `.env`, or create an `AIza` key in Google Cloud Console → APIs & Services → Credentials, restricted to the Generative Language API. |
-| "No API key found" | The key line is missing or still has the placeholder text. |
-| "Model … not found" | Put a current model name after `LLM_MODEL=` (copy it from AI Studio / OpenRouter). |
-| "Free-tier limit reached" | The app already waits and retries per-minute limits; daily limits reset the next day. |
-| "All AI providers failed" | Each provider's reason is listed – fix the first one (usually a key or model name), or wait for the daily limit to reset. |
-| "did not return a valid synopsis" | Retry, set `LLM_JSON_MODE=json`, or use a stronger model. |
-
-The `.env` file is re-read on every run, so you don't need to restart the app after editing it.
+| "Fallback used – … Free-tier limit reached" | A free backup was out of quota; the next one was used. If the **main** provider is skipped, check its balance / key |
+| Review sheet says a free model wrote the synopsis | The main provider failed – see its reason in the ⚠️ "Fallback used" lines |
+| "All AI providers failed" | Each provider's reason is listed – fix the first (usually key, model name or balance) |
+| "Model … not found" | Copy the exact model ID from the provider's dashboard into `LLM_MODEL` |
+| Gemini rejects a key starting `AQ.` | Set `GEMINI_KEY_HEADER=bearer` (or `header`), or create an `AIza…` key |
+| "did not return a valid synopsis" | Retry, or use a stronger main model |
+| "Amount looks wrong by a factor of 10…" ❌ | Lakh / crore conversion slip – correct it in *Edit before sharing* |
+| "links to N other document(s)… not uploaded" | Download those files from the portal and run again with them |
+| Password and history vanish after a redeploy | The `/data` volume is missing – add it in Railway |
+| Synopsis marked failed after an update | It was running during the redeploy – run it again |
