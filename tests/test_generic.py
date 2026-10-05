@@ -468,3 +468,14 @@ def test_not_stated_requirement_needs_no_quote():
     s = Synopsis.model_validate({"profile": {}, "requirements": [{"category": "jv_consortium",
         "text": "Not stated", "quote": "Not stated in the documents", "page": 1}]})
     assert check_requirements(s, t) == []
+
+
+def test_closed_bid_row_added():
+    from tender_synopsis.schema import Synopsis
+    from tender_synopsis.verify import mark_closed_bid
+    s = Synopsis.model_validate({"profile": {"submission_deadline": "17.09.2020 18:00"},
+        "sections": [{"heading": "9. Quick Decision", "blocks": [{"type": "table",
+            "headers": ["Question", "Answer"], "rows": [["EMD?", "Yes"]]}]}], "summary": "x"})
+    assert mark_closed_bid(s)
+    assert "still open" in s.sections[0].blocks[0].rows[0][0]
+    assert mark_closed_bid(s) and len(s.sections[0].blocks[0].rows) == 2   # not added twice

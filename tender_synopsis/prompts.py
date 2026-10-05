@@ -76,6 +76,13 @@ D. When two files list the same sites / items / quantities / areas, compare them
    by digit and re-check: 290000000 = ₹29,00,00,000 = ₹29 crore; 870 lakh = ₹8.70 crore =
    87000000. Percentages of a value must use the converted value (40% of ₹29 crore =
    ₹11.6 crore). amount_inr is always in plain rupees.
+20. Cross-check the fine print: (a) figures inside forms, formats, annexures and certificate
+   templates (e.g. a turnover or experience figure in a CA-certificate format) against the
+   eligibility clauses - before calling it a conflict, check whether it is the same
+   requirement in another unit (e.g. ₹300 lakh total over 3 years = ₹100 lakh average a year);
+   report only a real mismatch, and say if it may just be loose wording; (b) slab / marks
+   tables (turnover bands, project-value bands, experience bands) for gaps or overlaps
+   between bands (e.g. "300-500" then ">600" leaves 500-600 unscored) - report them.
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.

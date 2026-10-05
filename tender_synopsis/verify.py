@@ -357,9 +357,28 @@ def tidy_text(syn: Synopsis) -> None:
                 it.sub_items = [t(x) for x in it.sub_items]
 
 
+def mark_closed_bid(syn: Synopsis) -> bool:
+    """If the closing date has passed, say so in the Word file itself (top of the Quick Decision
+    table, or the summary) - not only on the review sheet."""
+    deadline = _first_date(syn.profile.submission_deadline)
+    if not isinstance(deadline, datetime) or deadline >= datetime.now():
+        return False
+    note = f"No - closed on {deadline:%d.%m.%Y}; check the portal for an extension or re-tender"
+    for sec in syn.sections:
+        for b in sec.blocks:
+            if b.rows and b.headers and "question" in b.headers[0].lower():
+                if not any("still open" in r[0].lower() for r in b.rows if r):
+                    b.rows.insert(0, ["==Bid still open?==", f"=={note}=="])
+                return True
+    if "closed" not in syn.summary.lower():
+        syn.summary = syn.summary.rstrip() + f" ==Note: the bid closed on {deadline:%d.%m.%Y}.=="
+    return True
+
+
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     repaired = fix_markup(syn)
     tidy_text(syn)
+    mark_closed_bid(syn)
     cyan = ensure_cyan(syn)
     pre = [Issue("info", "formatting", f"{repaired} broken highlight/bold marker(s) repaired "
                  "automatically.")] if repaired else []
