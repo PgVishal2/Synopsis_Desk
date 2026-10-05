@@ -12,7 +12,7 @@
 <div class="panel">
   {% if items %}
   <div class="table-wrap"><table>
-    <tr><th>Synopsis</th><th>Made</th><th>Files</th><th>Checks</th><th>Status</th><th></th></tr>
+    <tr><th>Synopsis</th><th>Made</th><th>Files</th><th>Checks</th><th>Status</th><th>Action</th></tr>
     {% for j in items %}
     <tr>
       <td><a href="{{ url_for('main.job', job_id=j.id) }}" class="t">{{ j.title or 'Untitled' }}</a></td>
@@ -20,7 +20,15 @@
       <td class="small muted">{{ j.files | join(', ') }}</td>
       <td class="small">{% if j.status == 'done' %}{{ j.counts.get('error', 0) }} to fix, {{ j.counts.get('warning', 0) }} to review{% endif %}</td>
       <td><span class="badge {{ j.status }}">{{ {'done':'Ready','running':'Working','queued':'Waiting','failed':'Failed'}[j.status] }}</span></td>
-      <td>{% if j.status == 'done' %}<a class="btn ghost small" href="{{ url_for('main.download', job_id=j.id, kind='docx') }}">{{ icon('download', 14) }} Word</a>{% endif %}</td>
+      <td style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        {% if j.status == 'done' %}
+        <a class="btn ghost small" href="{{ url_for('main.download', job_id=j.id, kind='docx') }}">{{ icon('download', 14) }} Word</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('main.delete', job_id=j.id) }}" data-confirm="Delete this synopsis and its files?" style="margin:0">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="btn danger small" type="submit" aria-label="Delete {{ j.title or 'Untitled' }}">{{ icon('trash', 14) }}</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </table></div>

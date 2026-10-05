@@ -88,6 +88,28 @@ def test_full_flow(client):
     assert "Test now" in c.get("/settings").get_data(as_text=True)
 
 
+def test_history_has_delete_button(client):
+    c = client
+    tok = csrf(c, "/login")
+    c.post("/login", data={"csrf": tok, "password": "tender-pass-1", "confirm": "tender-pass-1"})
+
+    tok = csrf(c, "/new")
+    r = c.post("/new", data={"csrf": tok, "mode": "compact", "double_check": "on",
+                             "files": (io.BytesIO(TENDER.read_bytes()), "DSIIDC RFP.pdf")},
+               content_type="multipart/form-data")
+    job_id = r.headers["Location"].rsplit("/", 1)[-1]
+
+    for _ in range(100):
+        st = c.get(f"/api/jobs/{job_id}").get_json()
+        if st["status"] in ("done", "failed"):
+            break
+        time.sleep(0.2)
+
+    html = c.get("/history").get_data(as_text=True)
+    assert f'/jobs/{job_id}/delete' in html
+    assert 'aria-label="Delete' in html or 'data-confirm="Delete this synopsis' in html
+
+
 def test_csrf_and_lockout(client):
     c = client
     tok = csrf(c, "/login")
