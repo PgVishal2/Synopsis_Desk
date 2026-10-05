@@ -435,38 +435,53 @@ def read_docx(path: Path, result: TenderText, words_per_page: int = 450) -> None
 _DOC_LINK = re.compile(r"\.pdf\b|download|biddoc|upload|\.docx?\b|\.xlsx?\b|\.zip\b", re.I)
 
 
-def _linked_docs_warning(path: Path, result: TenderText) -> None:
+def _linked_docs(path: Path) -> list[str]:
     """Portal bids (GeM, IREPS, CPPP...) often keep the scope, terms or BOQ in linked files
-    that are not part of the PDF. The app does not download them, so tell the user."""
+    that are not part of the PDF. The app does not download them, so the user is told."""
     try:
         with pymupdf.open(path) as doc:
             links = [l["uri"] for page in doc for l in page.get_links()
                      if l.get("uri") and _DOC_LINK.search(l["uri"])]
     except Exception:                                      # noqa: BLE001 - optional hint only
-        return
-    links = list(dict.fromkeys(links))
-    if links:
-        result.warnings.append(
-            f"{path.name} links to {len(links)} other document(s) (for example scope of work, "
-            "payment terms, additional conditions or BOQ) that are NOT included in the PDF. "
-            "Download them from the portal and add them to this synopsis, otherwise those "
-            "details will be missing.")
+        return []
+    return list(dict.fromkeys(links))
+
+
+def _missing_links(links: dict[str, list[str]], uploaded: list[str]) -> list[str]:
+    """Warnings for linked documents whose file was not uploaded alongside."""
+    stems = [Path(n).stem.lower() for n in uploaded]
+    out = []
+    for name, urls in links.items():
+        missing = []
+        for u in urls:
+            m = re.search(r"([\w-]{6,})\.(?:pdf|docx?|xlsx?|zip)\b", u, re.I)
+            key = (m.group(1) if m else "").lower()
+            if not key or not any(key in st or st in key for st in stems if len(st) >= 6):
+                missing.append(u)
+        if missing:
+            out.append(f"{name} links to {len(missing)} other document(s) (for example scope of "
+                       "work, payment terms, additional conditions or BOQ) that were not uploaded. "
+                       "Download them from the portal and add them to this synopsis, otherwise "
+                       "those details will be missing.")
+    return out
 
 
 def read_files(paths: list[str | Path]) -> TenderText:
     """Read one tender made of one or more files (main doc, corrigenda, annexures)."""
     result = TenderText()
+    links: dict[str, list[str]] = {}
     for p in map(Path, paths):
         ext = p.suffix.lower()
         if ext == ".pdf":
             read_pdf(p, result)
-            _linked_docs_warning(p, result)
+            links[p.name] = _linked_docs(p)
         elif ext == ".docx":
             read_docx(p, result)
         elif ext in (".txt", ".md"):
             result.pages.append(Page(p.name, 1, _clean(p.read_text(errors="ignore"))))
         else:
             result.warnings.append(f"{p.name}: unsupported file type, skipped")
+    result.warnings += _missing_links(links, [Path(p).name for p in paths])
     for f in dict.fromkeys(p.file for p in result.pages):
         first = "\n".join(p.text for p in result.pages if p.file == f)[:1500]
         result.roles[f] = classify(f, first)

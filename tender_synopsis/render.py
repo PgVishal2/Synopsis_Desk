@@ -221,7 +221,8 @@ def render_docx(syn: Synopsis, out_path: str | Path, source_files: list[str] | N
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(10)
         _shade(p._p.get_or_add_pPr(), SUMMARY_FILL)
-        add_rich_text(p, "✅ **In Summary:** " + syn.summary)
+        summary = re.sub(r"^\W*(?:\**\s*in summary\s*:?\s*\**)?\s*", "", syn.summary, flags=re.I)
+        add_rich_text(p, "✅ **In Summary:** " + summary)
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)

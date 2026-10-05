@@ -125,6 +125,10 @@ def _scale_slip(value_nums: set[str], quote_nums: set[str]) -> tuple[str, str] |
     return None
 
 
+_ABSENT = ("not prescribed", "not applicable", "not disclosed", "not stated", "not mentioned",
+           "no provision", "silent")
+
+
 def check_quotes(syn: Synopsis, tender: TenderText) -> list[Issue]:
     issues = []
     for kf in syn.key_facts:
@@ -169,6 +173,8 @@ def check_requirements(syn: Synopsis, tender: TenderText) -> list[Issue]:
         if not r.quote.strip():
             issues.append(Issue("warning", name, f"No source quote for: {r.text[:80]}", r.page or None))
             continue
+        if _norm(r.quote).startswith(_ABSENT):
+            continue                       # "not stated in the documents" - nothing to find
         near = "\n".join(tender.page_text(p, r.file or None) for p in (r.page - 1, r.page, r.page + 1))
         if max(_best_match(r.quote, near), _best_match(r.quote, tender.full_text)) < QUOTE_OK:
             issues.append(Issue("error", name, f"Source quote not found - verify: {r.text[:80]}",

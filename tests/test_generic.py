@@ -450,3 +450,21 @@ def test_lakh_crore_slip_is_an_error():
     assert _scale_slip({"8700000"}, _numbers("Turnover 870 Lakh (s)"))
     assert not _scale_slip(_numbers("₹29,00,00,000"), _numbers("Estimated Bid Value 290000000"))
     assert not _scale_slip(_numbers("₹8,70,00,000"), _numbers("870 Lakh"))
+
+
+def test_linked_doc_already_uploaded_is_not_reported():
+    from tender_synopsis.ingest import _missing_links
+    links = {"bid.pdf": ["https://x.gov.in/biddoc/1788773570.pdf", "https://x.gov.in/a/boq123456.xlsx"]}
+    w = _missing_links(links, ["bid.pdf", "1788773570.pdf"])
+    assert len(w) == 1 and "links to 1 other" in w[0]
+    assert _missing_links(links, ["bid.pdf", "1788773570.pdf", "boq123456.xlsx"]) == []
+
+
+def test_not_stated_requirement_needs_no_quote():
+    from tender_synopsis.ingest import Page, TenderText
+    from tender_synopsis.schema import Synopsis
+    from tender_synopsis.verify import check_requirements
+    t = TenderText(pages=[Page("a.pdf", 1, "Some tender text about EMD and dates.")])
+    s = Synopsis.model_validate({"profile": {}, "requirements": [{"category": "jv_consortium",
+        "text": "Not stated", "quote": "Not stated in the documents", "page": 1}]})
+    assert check_requirements(s, t) == []

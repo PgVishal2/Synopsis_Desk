@@ -81,7 +81,20 @@ D. When two files list the same sites / items / quantities / areas, compare them
    "fund the account 24 hours before") unless the tender says it.
 
 STYLE
-- Formal, crisp, factual. Short bullets, no filler, no legal boilerplate, no disclaimers.
+- Formal, crisp, factual. No filler, no legal boilerplate, no disclaimers.
+- TABLES FIRST. A reader should get the tender from tables and short bullets, not paragraphs.
+  Use a table whenever 3 or more items share the same kind of detail, for example:
+  eligibility = Criterion | Requirement | Proof / document; fees and securities =
+  Item | Amount | Form / timing; penalties = Default | Penalty; evaluation = Parameter |
+  Max marks; scope = Area | What is required; sites / items = one row each.
+  Put the source in a short last column or after the value as "(p.12)" - never long
+  clause citations like "(NIT Cl. 4.4(vii), p.15)" in running text.
+- Bullets: one fact each, at most about 20 words. No paragraphs over 2 lines.
+- Say each fact ONCE. The top table may repeat key figures; sections must not repeat each
+  other (e.g. options listed in a table are not repeated as bullets).
+- Standard clauses every tender has (arbitration, jurisdiction, force majeure, applicable law,
+  general termination): COMPACT leaves them out unless unusual; DETAILED lists them briefly
+  in one "Other terms" table (Clause | Key point), one row each.
 - Dates as DD.MM.YYYY; times as "15:00 Hrs" or "3:00 PM" as written in the tender.
 - Money in Indian format with ₹: ₹8,00,000 / ₹4.00 Crore / ₹50 lakh. Say "(Incl. GST)" if stated.
 - Inline markup: **bold** for every key figure; ==yellow== for critical items (submission
@@ -121,6 +134,21 @@ CORE SECTIONS (always include, in this order; merge or rename to suit the tender
 - jv_consortium        Allowed or not; member limits and shares
 - scope_of_work        What is to be delivered (grouped, concise)
 - commercial_terms     Payment schedule, contract period, penalties/LD, termination essentials
+- documents_required   "Documents to Submit" checklist: one bullet per document or form the
+                       bidder must upload / submit (forms, certificates, registrations,
+                       undertakings, presentation). Short names only, as the tender names them.
+- quick_decision       LAST section, "Quick Decision": a table with headers
+                       ["Question", "Answer"]. 8-12 plain-language Yes/No questions a bidder
+                       decides on, each answered "Yes" / "No" / "Not stated" plus the figure,
+                       e.g. "Minimum turnover required? | Yes - ₹<amount> average (3 years)",
+                       "Turnover / experience relaxation for MSE or Startup? | Yes / No
+                       (which file says so)", "EMD required? | Yes - ₹<amount>; exemptions",
+                       "JV / consortium allowed? | Not stated". Use this tender's own figures.
+                       Cover: turnover, relaxations / exemptions, EMD, performance security,
+                       experience, key certifications, JV, contract period, evaluation method,
+                       deadline. Answers must match the sections above and use EVERY uploaded
+                       file (e.g. a GeM bid's relaxation fields count even if the NIT is
+                       silent); where files disagree answer "Conflict - X (file A) vs Y (file B)".
 
 ADD WHEN THE TENDER TYPE NEEDS IT:
 - GeM Bid: mse_startup_exemptions, make_in_india (local content %), option_clause,
@@ -149,9 +177,15 @@ Add any other section that a bid/no-bid decision would depend on (key = 'custom'
 """
 
 DETAIL_LEVELS = {
-    "detailed": "Write the DETAILED version: 8-14 numbered sections, full eligibility and scope.",
-    "compact": "Write the COMPACT version: about one page - key facts table, important dates, "
-               "eligibility, scope (short), commercial terms. 5-6 sections at most.",
+    "detailed": "Write the DETAILED version, about 5-6 pages: 9-14 numbered sections covering "
+                "the full eligibility, scope, deliverables, evaluation marks, payment, "
+                "penalties, securities and other terms, then documents_required and "
+                "quick_decision last. Give every condition a bidder must meet or price for - "
+                "but as tables and short bullets, never paragraphs.",
+    "compact": "Write the COMPACT version, about 2-3 pages: key facts table, then 5-7 short "
+               "sections - dates (table), eligibility (one table), scope (max 6 rows / "
+               "bullets), money & contract terms (one table), quick_decision last. "
+               "Skip documents_required and anything a bidder would not decide on.",
 }
 
 
