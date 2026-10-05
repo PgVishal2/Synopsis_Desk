@@ -1,6 +1,8 @@
 """End-to-end: tender files -> text -> LLM JSON -> checks -> Word synopsis + review report."""
 from __future__ import annotations
 
+import re
+
 import json
 import time
 from dataclasses import dataclass, field
@@ -14,7 +16,7 @@ from .prompts import VERIFY_PROMPT, build_system_prompt, build_user_prompt
 from .render import render_docx
 from .schema import Synopsis
 from .style_examples import load_examples
-from .verify import Issue, run_checks
+from .verify import Issue, _numbers, run_checks
 
 CRITICAL = ("deadline", "emd", "turnover", "net_worth", "pbg", "security", "fee", "value")
 
@@ -39,13 +41,31 @@ def llm_double_check(syn: Synopsis, tender: TenderText) -> list[Issue]:
         return []
     lines = []
     for k in facts:
-        page = tender.page_text(k.page, k.file or None)[:3000]
-        lines.append(f"FIELD: {k.field}\nSTATED VALUE: {k.value}\nSOURCE PAGE {k.page}:\n{page}")
+        page = tender.page_text(k.page, k.file or None)[:6000]
+        nxt = tender.page_text(k.page + 1, k.file or None)[:2500] if k.page else ""
+        lines.append(f"FIELD: {k.field}\nSTATED VALUE: {k.value}\nSOURCE PAGE {k.page}:\n{page}"
+                     + (f"\n(NEXT PAGE, clause may continue):\n{nxt}" if nxt else ""))
     data, _ = llm.json_call(VERIFY_PROMPT, "\n\n---\n\n".join(lines))
-    return [Issue("error", c.get("field", "?"),
-                  f"Second check disagrees: {c.get('reason', '')} "
-                  f"(suggested: {c.get('correct_value', '')})")
-            for c in data.get("checks", []) if not c.get("ok", True)]
+    stated = {k.field: k.value for k in facts}
+    issues = []
+    for c in data.get("checks", []) if isinstance(data, dict) else []:
+        if c.get("ok", True):
+            continue
+        field, fix = c.get("field", "?"), str(c.get("correct_value") or "").strip()
+        # Only a different number/date is a real error; wording-only disagreements are
+        # usually OCR typos or synonyms, so they are shown as something to glance at.
+        same_numbers = bool(fix) and _numbers(fix) == _numbers(stated.get(field, ""))
+        # "not on this page / truncated / not stated" = could not confirm, not proven wrong:
+        # the fact often sits in another clause or file.
+        unseen = re.search(r"not (?:stated|found|mentioned|present|supported|in the provided)|"
+                           r"truncat|does not (?:state|mention)|no mention|cannot (?:be )?(?:confirm|verif)",
+                           f"{c.get('reason', '')} {fix}", re.I)
+        severity = "warning" if (not fix or same_numbers or unseen) else "error"
+        lead = ("Could not confirm this on the quoted page - please check the documents: "
+                if unseen else "Second check disagrees: ")
+        issues.append(Issue(severity, field, f"{lead}{c.get('reason', '')}"
+                            + (f" (suggested: {fix})" if fix else "")))
+    return issues
 
 
 def documents_table(tender: TenderText) -> list[dict]:

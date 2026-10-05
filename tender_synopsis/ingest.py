@@ -432,6 +432,27 @@ def read_docx(path: Path, result: TenderText, words_per_page: int = 450) -> None
         result.pages.append(Page(path.name, n, _clean("\n".join(page))))
 
 
+_DOC_LINK = re.compile(r"\.pdf\b|download|biddoc|upload|\.docx?\b|\.xlsx?\b|\.zip\b", re.I)
+
+
+def _linked_docs_warning(path: Path, result: TenderText) -> None:
+    """Portal bids (GeM, IREPS, CPPP...) often keep the scope, terms or BOQ in linked files
+    that are not part of the PDF. The app does not download them, so tell the user."""
+    try:
+        with pymupdf.open(path) as doc:
+            links = [l["uri"] for page in doc for l in page.get_links()
+                     if l.get("uri") and _DOC_LINK.search(l["uri"])]
+    except Exception:                                      # noqa: BLE001 - optional hint only
+        return
+    links = list(dict.fromkeys(links))
+    if links:
+        result.warnings.append(
+            f"{path.name} links to {len(links)} other document(s) (for example scope of work, "
+            "payment terms, additional conditions or BOQ) that are NOT included in the PDF. "
+            "Download them from the portal and add them to this synopsis, otherwise those "
+            "details will be missing.")
+
+
 def read_files(paths: list[str | Path]) -> TenderText:
     """Read one tender made of one or more files (main doc, corrigenda, annexures)."""
     result = TenderText()
@@ -439,6 +460,7 @@ def read_files(paths: list[str | Path]) -> TenderText:
         ext = p.suffix.lower()
         if ext == ".pdf":
             read_pdf(p, result)
+            _linked_docs_warning(p, result)
         elif ext == ".docx":
             read_docx(p, result)
         elif ext in (".txt", ".md"):

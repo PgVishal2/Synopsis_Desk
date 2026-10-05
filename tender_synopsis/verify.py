@@ -93,6 +93,38 @@ def _best_match(quote: str, text: str) -> int:
     return score
 
 
+def _inr(n: str) -> str:
+    """290000000 -> Rs 29,00,00,000 (Indian grouping), for messages people read."""
+    try:
+        v = int(float(n))
+    except ValueError:
+        return n
+    t = str(v)
+    head, tail = t[:-3], t[-3:]
+    while len(head) > 2:
+        tail, head = head[-2:] + "," + tail, head[:-2]
+    return "₹" + (head + "," + tail if head else tail)
+
+
+def _scale_slip(value_nums: set[str], quote_nums: set[str]) -> tuple[str, str] | None:
+    """A value that is the quote's number x10 / x100 / x1000 (or the reverse) is almost always
+    a lakh / crore conversion mistake, e.g. 290000000 written as Rs 2,90,00,000."""
+    def as_int(n):
+        try:
+            return int(float(n))
+        except ValueError:
+            return 0
+    for v in value_nums:
+        a = as_int(v)
+        if a < 1000:
+            continue
+        for q in quote_nums:
+            b = as_int(q)
+            if b >= 1000 and a != b and any(a == b * 10 ** k or b == a * 10 ** k for k in (1, 2, 3)):
+                return v, q
+    return None
+
+
 def check_quotes(syn: Synopsis, tender: TenderText) -> list[Issue]:
     issues = []
     for kf in syn.key_facts:
@@ -113,7 +145,13 @@ def check_quotes(syn: Synopsis, tender: TenderText) -> list[Issue]:
                                     f"Verify '{kf.value}' manually.", kf.page))
                 continue
         missing = {n for n in _numbers(kf.value) - _numbers(kf.quote) if len(n) > 1}
-        if missing and "computed" in kf.value.lower():
+        slip = _scale_slip(missing, _numbers(kf.quote))
+        if slip:
+            issues.append(Issue("error", kf.field,
+                                f"Amount looks wrong by a factor of 10 or more: the document says "
+                                f"{_inr(slip[1])}, the synopsis says {_inr(slip[0])}. "
+                                "Check the lakh / crore conversion.", kf.page))
+        elif missing and "computed" in kf.value.lower():
             issues.append(Issue("info", kf.field, f"'{kf.value}' is a calculated total - "
                                 "re-add the list to confirm.", kf.page))
         elif missing:
@@ -138,7 +176,13 @@ def check_requirements(syn: Synopsis, tender: TenderText) -> list[Issue]:
             continue
         if r.amount_inr:
             amt = str(int(round(r.amount_inr)))
-            if amt not in _numbers(r.quote):
+            slip = _scale_slip({amt}, _numbers(r.quote))
+            if slip:
+                issues.append(Issue("error", name, f"Amount looks wrong by a factor of 10 or "
+                                    f"more: the document says {_inr(slip[1])}, the synopsis "
+                                    f"says {_inr(slip[0])}. Check the lakh / crore conversion.",
+                                    r.page or None))
+            elif amt not in _numbers(r.quote):
                 issues.append(Issue("warning", name, f"Amount {amt} not found in its quote "
                                     f"'{r.quote[:80]}' - check the conversion.", r.page or None))
     return issues
@@ -171,8 +215,9 @@ def check_dates(syn: Synopsis) -> list[Issue]:
     if isinstance(issued, datetime) and isinstance(deadline, datetime) and deadline < issued:
         issues.append(Issue("error", "submission_deadline", "Deadline is before the issue date."))
     if isinstance(deadline, datetime) and deadline < datetime.now():
-        issues.append(Issue("info", "submission_deadline",
-                            f"Deadline {p.submission_deadline} has already passed."))
+        issues.append(Issue("warning", "submission_deadline",
+                            f"The bid closing date ({p.submission_deadline}) has already passed. "
+                            "Check the portal for an extension or a fresh tender before working on it."))
     return issues
 
 
@@ -254,7 +299,7 @@ def check_coverage(syn: Synopsis) -> list[Issue]:
 _FIN = re.compile(r"turnover|net[ -]?worth|solvency|banker'?s? cert|financial eligibility"
                   r"|similar work.{0,40}(?:₹|rs\.?|value)", re.I)
 _YELLOW = re.compile(r"==(.+?)==")
-_AMOUNT = re.compile(r"(turnover[^.;]*?)(₹\s?[\d,.]+\s*(?:lakh|lac|crore|cr)?\b|\bNil\b)", re.I)
+_MONEYISH = re.compile(r"₹|\brs\.?\s?\d|\blakh|\blac\b|\bcrore|\bnil\b|stipulated|as per (?:the )?(?:auction )?catalogue", re.I)
 _THAT = re.compile(r"^(That|Which)\s+(?=[a-z])")
 
 
@@ -262,25 +307,25 @@ def ensure_cyan(syn: Synopsis) -> int:
     """House style: financial thresholds in cyan (++). Models often use yellow or nothing."""
     changed = 0
 
-    def cy(v: str, whole: bool = False) -> str:
+    def cy(v: str, mode: str = "item") -> str:
+        """mode: row = whole key-facts row; item = one bullet/cell; summary = yellow parts only."""
         nonlocal changed
-        if not v or not (whole or _FIN.search(v)):
+        if not v or not (mode == "row" or _FIN.search(v)):
             return v
-        new = _YELLOW.sub(lambda m: f"++{m.group(1)}++" if whole or _FIN.search(m.group(1))
-                          or _FIN.search(v) and re.search(r"₹|\blakh|\bcrore|\bnil\b", m.group(1), re.I)
-                          else m.group(0), v)
-        if "++" not in new:
-            if whole:
-                new = f"++{new.strip('=')}++" if "==" not in new else new
-            else:
-                new = _AMOUNT.sub(lambda m: f"{m.group(1)}++{m.group(2)}++", new)
+        new = _YELLOW.sub(lambda m: f"++{m.group(1)}++" if mode == "row" or _FIN.search(m.group(1))
+                          or _FIN.search(v) and _MONEYISH.search(m.group(1)) else m.group(0), v)
+        # Wrap the whole bullet rather than one amount: in slab lists the first amount is
+        # often the bracket (e.g. revenue), not the threshold itself.
+        if "++" not in new and "==" not in new and mode != "summary" \
+                and (mode == "row" or _MONEYISH.search(new)):
+            new = f"++{new.strip()}++"
         changed += new != v
         return new
 
     rows = []
     for row in syn.key_facts_table:
         if row and _FIN.search(row[0]):
-            row = [cy(c, whole=True) for c in row]
+            row = [cy(c, "row") for c in row]
         rows.append(row)
     syn.key_facts_table = rows
     for sec in syn.sections:
@@ -290,7 +335,7 @@ def ensure_cyan(syn: Synopsis) -> int:
             for it in b.items:
                 it.text = cy(it.text)
                 it.sub_items = [cy(x) for x in it.sub_items]
-    syn.summary = cy(syn.summary)
+    syn.summary = cy(syn.summary, "summary")
     return changed
 
 
@@ -313,8 +358,8 @@ def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     pre = [Issue("info", "formatting", f"{repaired} broken highlight/bold marker(s) repaired "
                  "automatically.")] if repaired else []
     if cyan:
-        pre.append(Issue("info", "formatting", f"{cyan} financial-eligibility item(s) set to "
-                         "cyan highlight automatically."))
+        pre.append(Issue("info", "formatting", f"{cyan} turnover / net worth figure(s) given the "
+                         "cyan highlight (house style)."))
     return pre + _run_checks(syn, tender)
 
 

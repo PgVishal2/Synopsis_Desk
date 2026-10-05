@@ -425,6 +425,28 @@ def test_ensure_cyan_and_tidy():
     tidy_text(s)
     items = [i.text for i in s.sections[0].blocks[0].items]
     assert items[0] == "++Minimum annual turnover ₹20 lakh++"
-    assert "++₹50 lakh++" in items[1]
+    assert items[1] == "++Above ₹1 crore: minimum annual turnover ₹50 lakh.++"
     assert items[2] == "The EMD is retained."
     assert s.key_facts_table[1] == ["EMD", "==10%=="]
+
+
+def test_linked_docs_warning(tmp_path):
+    import pymupdf
+    from tender_synopsis.ingest import read_files
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Bid document. Scope of Work: see attached file. " * 5)
+    page.insert_link({"kind": pymupdf.LINK_URI, "from": pymupdf.Rect(72, 60, 200, 80),
+                      "uri": "https://example.gov.in/biddoc/scope.pdf"})
+    f = tmp_path / "bid.pdf"
+    doc.save(f)
+    t = read_files([f])
+    assert any("links to 1 other document" in w for w in t.warnings)
+
+
+def test_lakh_crore_slip_is_an_error():
+    from tender_synopsis.verify import _numbers, _scale_slip
+    assert _scale_slip(_numbers("₹2,90,00,000"), _numbers("Estimated Bid Value 290000000"))
+    assert _scale_slip({"8700000"}, _numbers("Turnover 870 Lakh (s)"))
+    assert not _scale_slip(_numbers("₹29,00,00,000"), _numbers("Estimated Bid Value 290000000"))
+    assert not _scale_slip(_numbers("₹8,70,00,000"), _numbers("870 Lakh"))

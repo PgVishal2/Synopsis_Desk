@@ -66,6 +66,16 @@ D. When two files list the same sites / items / quantities / areas, compare them
    MSEs vs others, a rate before vs after a date), keep each with its condition and source
    file. Never merge them into one value. If they truly clash, add a review_note.
 16. Every turnover / net worth / solvency figure is wrapped in ++cyan++, never ==yellow==.
+17. A conditions document may cover many products or work types (e.g. separate chapters per
+   category). Use only the chapters and general clauses that apply to THIS tender's item;
+   leave out conditions written for other categories entirely (not even "for completeness").
+18. In tables, read each number under its own column header (count vs size vs total vs
+   rate). Before reporting a mismatch between two lists, re-check that you compared the
+   same column; a mismatch claim must quote both rows.
+19. Indian money units: 1 lakh = 1,00,000; 1 crore = 100 lakh = 1,00,00,000. Convert digit
+   by digit and re-check: 290000000 = ₹29,00,00,000 = ₹29 crore; 870 lakh = ₹8.70 crore =
+   87000000. Percentages of a value must use the converted value (40% of ₹29 crore =
+   ₹11.6 crore). amount_inr is always in plain rupees.
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.
