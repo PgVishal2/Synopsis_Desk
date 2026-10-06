@@ -84,6 +84,11 @@ D. When two files list the same sites / items / quantities / areas, compare them
    report only a real mismatch, and say if it may just be loose wording; (b) slab / marks
    tables (turnover bands, project-value bands, experience bands) for gaps or overlaps
    between bands (e.g. "300-500" then ">600" leaves 500-600 unscored) - report them.
+21. Pass/fail vs scored: if a checklist, appendix or form titled "minimum eligibility" (or
+   similar) lists a criterion that the main text only uses for marks, do NOT call it "scored
+   only" - treat it as a possible mandatory minimum, show both readings and add a review_note.
+   Likewise flag who may bid when the documents describe eligible bidders differently
+   (e.g. "Government of India PSUs" in one place, "Central or State PSUs" in another).
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.
@@ -140,7 +145,9 @@ REQUIREMENTS (for the automatic bid/no-bid check - be complete and literal)
 
 SECTION_LIBRARY = """\
 CORE SECTIONS (always include, in this order; merge or rename to suit the tender):
-- key_dates            Schedule: publish, queries, pre-bid, submission, opening, presentation
+- key_dates            Schedule: publish, queries, pre-bid, site visit, submission, opening,
+                       presentation, plus any HARD-COPY / physical submission or original
+                       EMD / fee deadline (often a separate date and a common disqualifier)
 - fees_emd             Tender/document fee, EMD/bid security (amount, form, exemptions)
 - performance_security PBG/ePBG/security deposit (%, validity, timeline)
 - eligibility_legal    Entity type, registrations, years in existence, blacklisting, insolvency
@@ -149,6 +156,11 @@ CORE SECTIONS (always include, in this order; merge or rename to suit the tender
 - jv_consortium        Allowed or not; member limits and shares
 - scope_of_work        What is to be delivered (grouped, concise)
 - commercial_terms     Payment schedule, contract period, penalties/LD, termination essentials
+- rejection_grounds    (detailed mode) "Will be rejected if…": the stated grounds for outright
+                       rejection (missing document, late hard copy, unsigned forms, conditional
+                       bid, non-matching MSE category…). Compact: the top 3 go in quick_decision.
+- corrigenda           When a corrigendum / addendum is uploaded: what changed (old -> new,
+                       file, page). The rest of the synopsis uses the new values.
 - documents_required   "Documents to Submit" checklist: one bullet per document or form the
                        bidder must upload / submit (forms, certificates, registrations,
                        undertakings, presentation). Short names only, as the tender names them.
@@ -168,26 +180,44 @@ CORE SECTIONS (always include, in this order; merge or rename to suit the tender
 ADD WHEN THE TENDER TYPE NEEDS IT:
 - GeM Bid: mse_startup_exemptions, make_in_india (local content %), option_clause,
   purchase_preference (L1+15% etc.), evaluation (total/item-wise, two-packet), consignee_delivery
-- EOI / Empanelment: empanelment_validity, selection_after_empanelment ("empanelment is not an
-  award"), project_cost_rules, documents_required
+- EOI / Empanelment: purpose and NEXT STAGE (e.g. RFP / limited tender only for those
+  shortlisted; "empanelment is not an award" - ==yellow==), shortlisting criteria and how many
+  will be shortlisted, categories / tiers with their own thresholds (one table: Category |
+  Value range | Turnover | Experience), empanelment validity and renewal, how work is later
+  allotted (rotation, L1 among empanelled, mini-competition), rates or fee caps if fixed now,
+  security on each assignment. Development / partner EOIs: land or asset offered, partner's
+  role, revenue / profit share or premium, project timelines, exit.
 - PPP / Concession / Licence: project_model, site_details (location, area, condition),
-  contract_period, operational_responsibilities, statutory_approvals, ownership
-- Licence / Advertising rights / E-Auction: sites_or_clusters (count, locations), reserve_price
-  or minimum licence fee, EMD per site/cluster, escalation, display norms, payment of fee
+  concession period, upfront premium / annual fee / revenue share / minimum guarantee and
+  their escalation, lock-in and change of control, financial close, operational
+  responsibilities, statutory approvals, ownership and hand-back, termination payments.
+- Licence / Advertising rights / E-Auction / Reverse Auction: sites_or_clusters (count,
+  locations), reserve or start price, bid increment, auction duration and auto-extension
+  rule, H1 / L1 basis, EMD per site / cluster, escalation, display norms, payment of fee.
 - IBC Form G: cirp_background (NCLT order, project), eligibility tiers (TNW / AUM),
   section_29A, submission_mode, confidentiality_undertaking, rp_contact
 - QCBS / RFP: evaluation (weights, minimum technical score, presentation), technical_scoring
 - Services / Events: deliverables_targets, kpis, milestone payments, penalties
-- Works (NIT): estimated cost, completion period, defect liability, BOQ/SoR basis
+- Works / EPC (NIT): estimated cost, completion period, defect liability, BOQ / SoR basis,
+  BID CAPACITY formula with its values (e.g. A x N x 2 - B), contractor registration class,
+  mobilisation / secured advance, retention / security deducted from bills, price variation
+  clause, labour cess, key personnel and equipment, milestones and LD.
 - Supply / Rate contract: items & quantities, specifications (headline only), delivery
-  schedule, warranty / AMC, inspection, price variation
-- Consultancy: deliverables, key experts & minimum qualifications, evaluation weights
+  schedule, warranty / AMC, inspection, price variation, OEM authorisation (MAF), Make in
+  India class / local content %, samples or PAC, rate-contract validity and order quantities
+  (guaranteed or not).
+- Consultancy: deliverables and timelines, key experts (table: Position | Qualification |
+  Experience | Man-months), evaluation weights and the QCBS formula, payment per deliverable.
 - Lease / Allotment / Asset sale / Disinvestment: asset details, reserve price, bid increment,
   payment schedule, site visit / data room, transfer conditions
 - Manpower / Facility services: headcount by category, minimum wages / statutory compliance,
   SLA penalties
 - Multi-volume tenders (ITB, GCC, SCC, BOQ, drawings): take the latest corrigendum value and
   mention the volume in review_notes when values differ across volumes
+- Several lots / categories / packages: one table with each lot's value, EMD, eligibility and
+  quantity; say whether a bidder may bid for one, some or all lots and any cap on awards.
+- MSE / Startup benefits: exemptions AND their conditions (Udyam category must match the
+  item / service, traders excluded, purchase preference rules).
 Add any other section that a bid/no-bid decision would depend on (key = 'custom').
 """
 
@@ -210,6 +240,8 @@ facts - these are MUST-HAVES, each with its source as "(p.N)":
   blacklisting, JV rule, MSE / Startup relaxations. Do not shorten eligibility in compact.
 - Money & contract terms (one table): EMD, fee, security, payment, penalties / LD, escalation,
   option clause - the figures that change the price.
+- Lots / clusters / sites table when the bidder chooses, prefers or prices lots (lot / cluster,
+  areas or locations, number of sites, size or value) - bidders decide on these.
 - Scope: at most 6 rows or bullets. Then quick_decision last.
 Every key date and amount must also be in key_facts with its exact quote.
 Skip documents_required and standard clauses.""",

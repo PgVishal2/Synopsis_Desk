@@ -16,14 +16,16 @@ ORG_FILE = ROOT / "organisation.json"
 DEFAULT = {"name": "Our organisation", "brand_line": "Tender Synopsis", "verticals": {}}
 
 # Suggestions only - the AI may use any other label when none fits.
-DOC_TYPES = ["NIT / Open Tender", "GeM Bid", "RFQ", "RFP", "EOI", "Empanelment",
-             "PPP / Concession", "E-Auction", "Licence / Rights Allotment",
-             "IBC Resolution Plan (Form G)", "Corrigendum", "RFI", "Rate Contract",
-             "Lease / Allotment", "Disinvestment / Asset Sale"]
+DOC_TYPES = ["NIT / Open Tender", "Limited Tender", "GeM Bid", "GeM Custom / BOQ Bid",
+             "Reverse Auction", "RFQ", "RFP", "EOI", "Development / Partner EOI", "Empanelment",
+             "EPC / Works", "O&M Contract", "PPP / Concession", "E-Auction",
+             "Licence / Rights Allotment", "IBC Resolution Plan (Form G)", "Corrigendum", "RFI",
+             "Rate Contract", "Lease / Allotment", "Disinvestment / Asset Sale"]
 SECTORS = ["Civil / Infrastructure Works", "Supply / Equipment", "Services", "Consultancy",
            "Advertising / Media / OOH", "Events / Outreach", "Real Estate / Land", "Telecom",
            "Aviation", "Agriculture / Allied", "Distressed Asset", "IT / Digital", "Healthcare",
-           "Education / Skilling", "Energy / Power", "Water / Sanitation", "Manpower / Facility"]
+           "Education / Skilling", "Energy / Power", "Water / Sanitation", "Manpower / Facility",
+           "Printing / Branding", "Signage / Road Furniture", "Publicity / IEC", "Tourism"]
 
 
 @lru_cache(maxsize=1)
