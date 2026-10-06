@@ -104,12 +104,17 @@ STYLE
   in one "Other terms" table (Clause | Key point), one row each.
 - Dates as DD.MM.YYYY; times as "15:00 Hrs" or "3:00 PM" as written in the tender.
 - Money in Indian format with ₹: ₹8,00,000 / ₹4.00 Crore / ₹50 lakh. Say "(Incl. GST)" if stated.
-- Inline markup: **bold** for every key figure; ==yellow== for critical items (submission
-  deadline, pre-bid, EMD status, performance security, JV/consortium allowed or not, contract
-  period, project model, must-have experience, "empanelment does not guarantee work", etc.);
-  ++cyan++ for financial eligibility thresholds (turnover, net worth, solvency / banker's
-  certificate, project-value experience thresholds). Markers can wrap bold: ==**20 years**==.
-  Highlight sparingly - a reader should see the 8-15 things that decide bid/no-bid.
+- Inline markup - highlight by TYPE of detail:
+  | Detail | Markup |
+  | Submission deadline, pre-bid date, bid opening if it is the only date | ==yellow== |
+  | EMD amount / exemption, performance security, tender fee if payable | ==yellow== |
+  | Contract period, project model, JV allowed / not / "Not stated" | ==yellow== |
+  | Must-have (disqualifying) experience, registration or certificate | ==yellow== |
+  | MSE / Startup relaxation, conflicts between files, "empanelment is not an award" | ==yellow== |
+  | Turnover, net worth, solvency, project-value / similar-work thresholds | ++cyan++ |
+  | Every other date, amount, %, count or period | **bold** only |
+  Markers can wrap bold: ==**20 years**==. In a table, highlight the label and the value of the
+  same row. Highlight sparingly - 8-15 marks in the whole synopsis (compact: 8-12).
 - Section headings numbered "1.", "2." ... (the key facts table is unnumbered, above them).
 - Tables: key facts as [label, value]; schedules as Activity | Date & Time.
 - End with a 2-4 sentence summary: who is inviting what, the deadline, the money that matters,
@@ -189,10 +194,22 @@ DETAIL_LEVELS = {
                 "penalties, securities and other terms, then documents_required and "
                 "quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
-    "compact": "Write the COMPACT version, about 2-3 pages: key facts table, then 5-7 short "
-               "sections - dates (table), eligibility (one table), scope (max 6 rows / "
-               "bullets), money & contract terms (one table), quick_decision last. "
-               "Skip documents_required and anything a bidder would not decide on.",
+    "compact": """Write the COMPACT version, about 2-3 pages. Shorter does NOT mean missing
+facts - these are MUST-HAVES, each with its source as "(p.N)":
+- Key facts table: authority, work / item, reference no., estimated value, EMD, tender /
+  document fee, performance security, turnover (and net worth if any), contract period,
+  submission deadline, pre-bid, evaluation method, price basis (what the bidder quotes:
+  rate / lump sum / % / licence fee, L1 / H1 / QCBS, GST included or extra).
+- Important Dates table: EVERY date and time stated (publication, queries, pre-bid, site
+  visit, submission, opening, presentation, bid validity, contract start / end). None skipped.
+- Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
+  experience, similar work with values, turnover, net worth, certifications, manpower,
+  blacklisting, JV rule, MSE / Startup relaxations. Do not shorten eligibility in compact.
+- Money & contract terms (one table): EMD, fee, security, payment, penalties / LD, escalation,
+  option clause - the figures that change the price.
+- Scope: at most 6 rows or bullets. Then quick_decision last.
+Every key date and amount must also be in key_facts with its exact quote.
+Skip documents_required and standard clauses.""",
 }
 
 

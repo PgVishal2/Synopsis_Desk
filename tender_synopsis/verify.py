@@ -299,6 +299,13 @@ def check_coverage(syn: Synopsis) -> list[Issue]:
     for need, label in (("deadline", "submission deadline"), ("emd", "EMD / bid security")):
         if need not in fields and need not in _norm(" ".join(_all_strings(syn))):
             issues.append(Issue("warning", need, f"No {label} captured - confirm it is truly absent."))
+    heads = " ".join(sec.heading.lower() + " " + sec.key.lower() for sec in syn.sections)
+    if "date" not in heads and "schedule" not in heads:
+        issues.append(Issue("warning", "content", "No 'Important Dates' section - check the "
+                            "dates were not left out."))
+    if not syn.requirements and "eligib" not in heads and "qualif" not in heads:
+        issues.append(Issue("warning", "content", "No eligibility criteria captured - check the "
+                            "tender for qualifying conditions."))
     return issues
 
 
