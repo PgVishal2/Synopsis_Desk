@@ -309,47 +309,83 @@ def check_coverage(syn: Synopsis) -> list[Issue]:
     return issues
 
 
-_FIN = re.compile(r"turnover|net[ -]?worth|solvency|banker'?s? cert|financial eligibility"
-                  r"|similar work.{0,40}(?:₹|rs\.?|value)", re.I)
-_YELLOW = re.compile(r"==(.+?)==")
+# House-style highlight by TYPE of detail (the AI is told the same in prompts.py; this fixes
+# what it forgets). Yellow (==) = decides bid / no-bid; cyan (++) = other financial thresholds.
+_TURNOVER = re.compile(r"turnover", re.I)
+_FIN = re.compile(r"net[ -]?worth|solvency|banker'?s? cert|similar work.{0,40}(?:₹|rs\.?|value)"
+                  r"|project[- ]value", re.I)
+_DEADLINE = re.compile(r"last date|due date|deadline|bid end|closing date|bid submission|"
+                       r"submission (?:date|deadline)", re.I)
+_JV = re.compile(r"\bjv\b|joint venture|consortium", re.I)
+_MARKED = re.compile(r"(==|\+\+)(.+?)\1")
 _MONEYISH = re.compile(r"₹|\brs\.?\s?\d|\blakh|\blac\b|\bcrore|\bnil\b|stipulated|as per (?:the )?(?:auction )?catalogue", re.I)
 _THAT = re.compile(r"^(That|Which)\s+(?=[a-z])")
 
 
-def ensure_cyan(syn: Synopsis) -> int:
-    """House style: financial thresholds in cyan (++). Models often use yellow or nothing."""
+def _rule_for(text: str):
+    """(marker, needs) for the first matching type; needs = value pattern a bullet must contain."""
+    if _TURNOVER.search(text):
+        return "==", _MONEYISH
+    if _FIN.search(text):
+        return "++", _MONEYISH
+    return None
+
+
+def ensure_highlights(syn: Synopsis) -> int:
+    """Apply the house highlight colours the AI missed:
+    minimum turnover, deadline, JV rule -> yellow; net worth / solvency / project value -> cyan."""
     changed = 0
 
-    def cy(v: str, mode: str = "item") -> str:
-        """mode: row = whole key-facts row; item = one bullet/cell; summary = yellow parts only."""
+    def recolour(v: str, marker: str, whole: bool, needs=None) -> str:
         nonlocal changed
-        if not v or not (mode == "row" or _FIN.search(v)):
+        if not v:
             return v
-        new = _YELLOW.sub(lambda m: f"++{m.group(1)}++" if mode == "row" or _FIN.search(m.group(1))
-                          or _FIN.search(v) and _MONEYISH.search(m.group(1)) else m.group(0), v)
-        # Wrap the whole bullet rather than one amount: in slab lists the first amount is
-        # often the bracket (e.g. revenue), not the threshold itself.
-        if "++" not in new and "==" not in new and mode != "summary" \
-                and (mode == "row" or _MONEYISH.search(new)):
-            new = f"++{new.strip()}++"
+        def seg(m):
+            own = _rule_for(m.group(2))
+            hit = whole or (own[0] == marker if own else bool(needs and needs.search(m.group(2))))
+            return f"{marker}{m.group(2)}{marker}" if hit else m.group(0)
+        new = _MARKED.sub(seg, v)
+        if "==" not in new and "++" not in new and (whole or (needs and needs.search(new))):
+            new = f"{marker}{new.strip()}{marker}"
         changed += new != v
         return new
 
-    rows = []
-    for row in syn.key_facts_table:
-        if row and _FIN.search(row[0]):
-            row = [cy(c, "row") for c in row]
-        rows.append(row)
-    syn.key_facts_table = rows
+    def row_rule(label: str):
+        if _DEADLINE.search(label) or _JV.search(label):
+            return "=="
+        r = _rule_for(label)
+        return r[0] if r else None
+
+    def fix_rows(rows):
+        out = []
+        for row in rows:
+            m = row_rule(row[0]) if row else None
+            out.append([recolour(c, m, True) for c in row] if m else
+                       [cell(c) for c in row])
+        return out
+
+    def cell(v: str, summary: bool = False) -> str:
+        r = _rule_for(v or "")
+        if not r:
+            return v
+        marker, needs = r
+        if summary:                     # only recolour parts already highlighted
+            return recolour(v, marker, False, None)
+        return recolour(v, marker, False, needs)
+
+    syn.key_facts_table = fix_rows(syn.key_facts_table)
     for sec in syn.sections:
         for b in sec.blocks:
-            b.text = cy(b.text)
-            b.rows = [[cy(c) for c in row] for row in b.rows]
+            b.text = cell(b.text)
+            b.rows = fix_rows(b.rows)
             for it in b.items:
-                it.text = cy(it.text)
-                it.sub_items = [cy(x) for x in it.sub_items]
-    syn.summary = cy(syn.summary, "summary")
+                it.text = cell(it.text)
+                it.sub_items = [cell(x) for x in it.sub_items]
+    syn.summary = cell(syn.summary, summary=True)
     return changed
+
+
+ensure_cyan = ensure_highlights          # older name
 
 
 def tidy_text(syn: Synopsis) -> None:
@@ -386,12 +422,12 @@ def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     repaired = fix_markup(syn)
     tidy_text(syn)
     mark_closed_bid(syn)
-    cyan = ensure_cyan(syn)
+    cyan = ensure_highlights(syn)
     pre = [Issue("info", "formatting", f"{repaired} broken highlight/bold marker(s) repaired "
                  "automatically.")] if repaired else []
     if cyan:
-        pre.append(Issue("info", "formatting", f"{cyan} turnover / net worth figure(s) given the "
-                         "cyan highlight (house style)."))
+        pre.append(Issue("info", "formatting", f"{cyan} item(s) given the house-style "
+                         "highlight (turnover, deadline, JV, net worth…)."))
     return pre + _run_checks(syn, tender)
 
 

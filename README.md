@@ -34,9 +34,10 @@ rights, e-auction, lease / allotment, IBC Form G, disinvestment, multi-volume RF
 Both modes are **table-first**: anything with 3 or more similar items becomes a table; bullets
 hold one short fact each; each fact appears once; sources are shown briefly as "(p.12)".
 
-**Highlights:** 🟨 yellow = items that decide bid / no-bid (deadline, EMD, contract period, JV rule,
-conflicts, relaxations) · 🟦 cyan = financial thresholds (turnover, net worth, project-value
-experience) · **bold** = key figures. Cyan is applied automatically if the AI forgets.
+**Highlights:** 🟨 yellow = items that decide bid / no-bid (last date / due date, pre-bid,
+**minimum turnover**, EMD, contract period, JV rule, conflicts, relaxations) · 🟦 cyan = other
+financial thresholds (net worth, solvency, project-value experience) · **bold** = key figures.
+Turnover, deadline, JV and the cyan items are fixed automatically if the AI forgets.
 
 **Quick Decision** – plain Yes / No answers with the figure: turnover required? MSE / Startup
 relaxation? EMD? security? experience? JV allowed? contract period? evaluation? If the closing date

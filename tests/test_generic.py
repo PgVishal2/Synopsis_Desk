@@ -240,7 +240,9 @@ def test_all_providers_fail_message(monkeypatch):
 
 
 # ------------------------------------------------------------------ Gemini AQ. auth keys
-def test_gemini_aq_key_retries_with_bearer_after_header_error(monkeypatch, tmp_path):
+def test_gemini_aq_key_accepted_and_sent_as_google_header(monkeypatch, tmp_path):
+    import httpx
+
     from tender_synopsis import env
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text(
@@ -253,22 +255,21 @@ def test_gemini_aq_key_retries_with_bearer_after_header_error(monkeypatch, tmp_p
     assert ok, msg
 
     seen = []
-    monkeypatch.setattr(llm, "_GOOGLE_FLIPPED", set())
 
-    def fake_client():
-        use_google_header = llm._google_header_mode(llm.providers()[0])
-
-        def create(**kw):
-            seen.append(use_google_header)
-            if use_google_header:
-                raise RuntimeError("Missing or invalid Authorization header.")
-            return NS(choices=[NS(message=NS(content="OK"))])
-
-        return NS(chat=NS(completions=NS(create=create)))
-
-    monkeypatch.setattr(llm, "_client", fake_client)
+    def handler(req):                      # accepts only the Google header, like AQ. keys
+        seen.append(dict(req.headers))
+        if "x-goog-api-key" not in req.headers:
+            return httpx.Response(401, json={"error": {"message": "API key not valid"}})
+        return httpx.Response(200, json={"id": "x", "object": "chat.completion", "created": 0,
+                              "model": "gemini", "choices": [{"index": 0, "finish_reason": "stop",
+                              "message": {"role": "assistant", "content": "OK"}}]})
+    class Mocked(httpx.Client):
+        def __init__(self, **kw):
+            super().__init__(transport=httpx.MockTransport(handler), **kw)
+    monkeypatch.setattr(httpx, "Client", Mocked)
+    llm._GOOGLE_FLIPPED.clear()
     assert "✅" in llm.check_connection()
-    assert seen == [True, False]
+    assert "authorization" not in seen[0] and seen[0]["x-goog-api-key"].startswith("AQ.")
 
 
 # ------------------------------------------------------------------ multi-document tenders
@@ -411,22 +412,31 @@ def test_bullets_in_other_shapes_are_kept_not_blanked():
     assert check_empty(empty)
 
 
-def test_ensure_cyan_and_tidy():
+def test_house_highlights_and_tidy():
     from tender_synopsis.schema import Synopsis
-    from tender_synopsis.verify import ensure_cyan, tidy_text
+    from tender_synopsis.verify import ensure_highlights, tidy_text
     s = Synopsis.model_validate({"profile": {}, "title": "t",
-        "key_facts_table": [["Turnover Eligibility", "Nil / ₹20 lakh"], ["EMD", "==10%=="]],
+        "key_facts_table": [["Turnover Eligibility", "Nil / ₹20 lakh"], ["EMD", "==10%=="],
+                            ["Last Date of Submission", "17.09.2026 18:00"],
+                            ["JV / Consortium", "Not stated"], ["Net Worth", "++Positive++"],
+                            ["Authority", "DGLL"]],
         "sections": [{"heading": "1. F", "blocks": [{"type": "bullets", "items": [
-            {"text": "==Minimum annual turnover ₹20 lakh=="},
+            {"text": "++Minimum annual turnover ₹20 lakh++"},
             {"text": "Above ₹1 crore: minimum annual turnover ₹50 lakh."},
+            {"text": "Net worth ₹5 crore and ++turnover ₹2 crore++"},
             {"text": "That the EMD is retained."}]}]}], "summary": ""})
-    assert ensure_cyan(s) >= 3
+    assert ensure_highlights(s) >= 5
     tidy_text(s)
+    kt = dict((r[0], r[1]) for r in s.key_facts_table)
+    assert kt["==Turnover Eligibility=="] == "==Nil / ₹20 lakh=="
+    assert kt["==Last Date of Submission=="] == "==17.09.2026 18:00=="
+    assert kt["==JV / Consortium=="] == "==Not stated=="
+    assert kt["++Net Worth++"] == "++Positive++"
+    assert kt["Authority"] == "DGLL" and kt["EMD"] == "==10%=="
     items = [i.text for i in s.sections[0].blocks[0].items]
-    assert items[0] == "++Minimum annual turnover ₹20 lakh++"
-    assert items[1] == "++Above ₹1 crore: minimum annual turnover ₹50 lakh.++"
-    assert items[2] == "The EMD is retained."
-    assert s.key_facts_table[1] == ["EMD", "==10%=="]
+    assert items[0] == "==Minimum annual turnover ₹20 lakh=="
+    assert items[1] == "==Above ₹1 crore: minimum annual turnover ₹50 lakh.=="
+    assert items[3] == "The EMD is retained."
 
 
 def test_linked_docs_warning(tmp_path):

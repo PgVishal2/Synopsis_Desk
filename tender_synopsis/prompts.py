@@ -65,7 +65,8 @@ D. When two files list the same sites / items / quantities / areas, compare them
    for different situations (e.g. a period counted from termination vs from expiry, a fee for
    MSEs vs others, a rate before vs after a date), keep each with its condition and source
    file. Never merge them into one value. If they truly clash, add a review_note.
-16. Every turnover / net worth / solvency figure is wrapped in ++cyan++, never ==yellow==.
+16. Minimum turnover is ==yellow== (it decides bid / no-bid). Net worth, solvency and
+   project-value / similar-work thresholds are ++cyan++.
 17. A conditions document may cover many products or work types (e.g. separate chapters per
    category). Use only the chapters and general clauses that apply to THIS tender's item;
    leave out conditions written for other categories entirely (not even "for completeness").
@@ -106,12 +107,14 @@ STYLE
 - Money in Indian format with ₹: ₹8,00,000 / ₹4.00 Crore / ₹50 lakh. Say "(Incl. GST)" if stated.
 - Inline markup - highlight by TYPE of detail:
   | Detail | Markup |
-  | Submission deadline, pre-bid date, bid opening if it is the only date | ==yellow== |
+  | Last date / due date for bid submission, pre-bid date | ==yellow== |
+  | Minimum turnover requirement (amount and years) | ==yellow== |
   | EMD amount / exemption, performance security, tender fee if payable | ==yellow== |
-  | Contract period, project model, JV allowed / not / "Not stated" | ==yellow== |
+  | JV / consortium rule - allowed, not allowed, or "Not stated" - always | ==yellow== |
+  | Contract period, project model | ==yellow== |
   | Must-have (disqualifying) experience, registration or certificate | ==yellow== |
   | MSE / Startup relaxation, conflicts between files, "empanelment is not an award" | ==yellow== |
-  | Turnover, net worth, solvency, project-value / similar-work thresholds | ++cyan++ |
+  | Net worth, solvency / banker's certificate, project-value / similar-work thresholds | ++cyan++ |
   | Every other date, amount, %, count or period | **bold** only |
   Markers can wrap bold: ==**20 years**==. In a table, highlight the label and the value of the
   same row. Highlight sparingly - 8-15 marks in the whole synopsis (compact: 8-12).
