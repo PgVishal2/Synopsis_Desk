@@ -240,9 +240,7 @@ def test_all_providers_fail_message(monkeypatch):
 
 
 # ------------------------------------------------------------------ Gemini AQ. auth keys
-def test_gemini_aq_key_accepted_and_sent_as_google_header(monkeypatch, tmp_path):
-    import httpx
-
+def test_gemini_aq_key_retries_with_bearer_after_header_error(monkeypatch, tmp_path):
     from tender_synopsis import env
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text(
@@ -255,21 +253,22 @@ def test_gemini_aq_key_accepted_and_sent_as_google_header(monkeypatch, tmp_path)
     assert ok, msg
 
     seen = []
+    monkeypatch.setattr(llm, "_GOOGLE_FLIPPED", set())
 
-    def handler(req):                      # accepts only the Google header, like AQ. keys
-        seen.append(dict(req.headers))
-        if "x-goog-api-key" not in req.headers:
-            return httpx.Response(401, json={"error": {"message": "API key not valid"}})
-        return httpx.Response(200, json={"id": "x", "object": "chat.completion", "created": 0,
-                              "model": "gemini", "choices": [{"index": 0, "finish_reason": "stop",
-                              "message": {"role": "assistant", "content": "OK"}}]})
-    class Mocked(httpx.Client):
-        def __init__(self, **kw):
-            super().__init__(transport=httpx.MockTransport(handler), **kw)
-    monkeypatch.setattr(httpx, "Client", Mocked)
-    llm._GOOGLE_FLIPPED.clear()
+    def fake_client():
+        use_google_header = llm._google_header_mode(llm.providers()[0])
+
+        def create(**kw):
+            seen.append(use_google_header)
+            if use_google_header:
+                raise RuntimeError("Missing or invalid Authorization header.")
+            return NS(choices=[NS(message=NS(content="OK"))])
+
+        return NS(chat=NS(completions=NS(create=create)))
+
+    monkeypatch.setattr(llm, "_client", fake_client)
     assert "✅" in llm.check_connection()
-    assert "authorization" not in seen[0] and seen[0]["x-goog-api-key"].startswith("AQ.")
+    assert seen == [True, False]
 
 
 # ------------------------------------------------------------------ multi-document tenders

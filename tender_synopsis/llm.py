@@ -264,7 +264,8 @@ def _retry_after(e) -> float | None:
 
 def _is_auth(e: Exception) -> bool:
     low = str(e).lower()
-    return "api key" in low or "api_key" in low or "401" in str(e) or "unauthenticated" in low
+    return ("api key" in low or "api_key" in low or "401" in str(e)
+            or "unauthenticated" in low or "authorization header" in low)
 
 
 VISION_PROMPT = """\
