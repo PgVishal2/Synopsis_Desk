@@ -1,7 +1,7 @@
 # Synopsis Desk
 
 Upload the documents of any tender (NIT, RFP, EOI, GeM bid, e-auction catalogue, corrigenda,
-special conditions, site lists, policies – text or scanned) and get a ready-to-share **Word
+special conditions, site lists, policies – text, scanned or as screenshots / photos) and get a ready-to-share **Word
 synopsis** in your house style, plus a **review sheet** that shows where every key figure came
 from and what a person should check before bidding.
 
@@ -47,7 +47,7 @@ has passed, the app itself adds *"Bid still open? – No"*.
 ## 2. Using the website
 
 1. Log in with the master password.
-2. **New synopsis** → drop **all** files of the tender together (PDF, Word .docx or .txt) →
+2. **New synopsis** → drop **all** files of the tender together (PDF, Word .docx, images or .txt) →
    choose *Compact* or *Detailed* → **Generate**. Progress is shown live.
 3. Read the checks on the result page (❌ first, then ⚠️).
 4. **Edit before sharing** – change the title, top table, summary or notes; or use
@@ -63,7 +63,8 @@ has passed, the app itself adds *"Bid still open? – No"*.
   The review sheet lists any linked file you have not uploaded – download and add them.
 - Give downloaded files clear names (`ScopeOfWork.pdf`, `ATC.pdf`, `LotDetails.pdf`) – names help
   the app label them.
-- Portal pages you only have as a screenshot (e.g. IREPS lot details): print them to PDF first.
+- Portal pages you only have as a screenshot (e.g. IREPS lot details) can be uploaded as
+  images (PNG / JPG). Name them clearly, e.g. `LotDetails.png`. Photos of paper: straight-on, good light.
 
 ---
 
@@ -123,6 +124,27 @@ weekends) cost half. Re-running the same files is cheaper (cached input). OCR co
 4. Sideways pages are straightened; "Digitally signed by… / Signature Not Verified" text is removed.
 5. `OCR_ENGINE=tesseract` uses Tesseract only. OCR results are cached.
 
+**Images** (PNG, JPG, WEBP, BMP, TIFF incl. multi-page) and **pictures inside Word files** use the
+same OCR – no AI "vision" call, so they cost no AI credits. Before OCR each image is turned
+upright (phone orientation; sideways pictures are retried turned, locally), converted to
+greyscale and resized to an OCR-friendly size (small screenshots enlarged, huge photos reduced);
+table rows are kept on one line. Logos and icons are skipped. Uploaded photos over 1.5 MB are
+stored as a smaller greyscale copy to save space.
+
+**Hard-to-read pages (handwriting, phone photos, poor scans)** – a 3-step ladder:
+
+| Step | What happens | Cost |
+|---|---|---|
+| 1. OCR.space | Cloud OCR reads the page | free tier |
+| 2. Tesseract | Reads it if OCR.space fails (and retries sideways pictures) | free, on the server |
+| 3. AI reading | If the OCR text looks like noise (quality check on every OCR'd page), the page image is sent – small and greyscale – to the AI, which copies exactly what is written and marks anything unreadable as *[illegible]* instead of guessing | about ₹0.1 per page with DeepSeek Flash |
+
+Step 3 is limited to `AI_IMAGE_MAX_PAGES` pages per tender (default 8) and can be turned off with
+`AI_IMAGE_READING=off`. Clean pages and blank pages never go to the AI. Pages read this way are
+marked "Read by AI" on the review sheet, their quotes are checked like any other page, and the
+tokens are included in the run's usage. The AI provider must accept images (DeepSeek V4.1 Flash
+and Gemini do); text-only providers are skipped for this step without affecting the synopsis.
+
 ---
 
 ## 6. Deploying on Railway
@@ -150,6 +172,7 @@ run it again.
 | `GEMINI_KEY_HEADER` | Only for Google keys starting `AQ.` if Gemini rejects them (`bearer` / `header`) |
 | `OCR_SPACE_API_KEY` | Cloud OCR (optional – Tesseract is always the backup) |
 | `OCR_ENGINE`, `OCR_WORKERS`, `OCR_SPACE_LANGUAGE`, `OCR_SPACE_ENGINE` | OCR tuning (optional) |
+| `AI_IMAGE_READING`, `AI_IMAGE_MAX_PAGES` | AI reading of hard-to-read pages (default `on`, `8` pages per tender) |
 | `MASTER_PASSWORD` | Sets the first master password |
 | `SECRET_KEY` | Optional; otherwise generated and stored in the database |
 | `DATA_DIR` | Storage folder (`/data` in the Docker image) |
@@ -228,7 +251,7 @@ to an AI. It is **off on the website** (`ENABLE_BID_CHECK`) so company figures n
 wsgi.py, webapp/            website (Flask): login, new synopsis, history, settings
   db.py  auth.py  jobs.py  views.py  templates/  static/
 tender_synopsis/            the engine (used by the website, Streamlit app and command line)
-  ingest.py                 PDF / DOCX reading, OCR, file roles, linked-file detection
+  ingest.py                 PDF / DOCX / image reading, OCR, file roles, linked-file detection
   condense.py               very long tenders: key pages in full + notes from the rest
   prompts.py                house rules, section library, Compact / Detailed
   schema.py                 data structure the AI must return
@@ -250,8 +273,10 @@ style_examples/  samples/  tests/
 ## 11. Known limits
 
 - Always have a person read the review sheet (❌ and ⚠️) before sharing or bidding.
-- Upload formats: PDF, Word (.docx), text. **Excel (BOQ) files and images are not read yet** –
-  print images to PDF; open BOQs separately.
+- Upload formats: PDF, Word (.docx), images, text. **Excel (BOQ) files are not read yet** – open
+  BOQs separately.
+- Images: screenshots read very well by OCR; handwriting and poor photos are passed to the AI
+  (a few pages per tender). Text the AI marks *[illegible]* still needs a clearer copy.
 - Some Hindi PDFs use old fonts whose text comes out garbled; such pages may need re-scanning or
   an English copy.
 - Linked portal documents are not downloaded automatically – the app tells you which are missing.

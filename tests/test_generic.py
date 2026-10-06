@@ -479,3 +479,182 @@ def test_closed_bid_row_added():
     assert mark_closed_bid(s)
     assert "still open" in s.sections[0].blocks[0].rows[0][0]
     assert mark_closed_bid(s) and len(s.sections[0].blocks[0].rows) == 2   # not added twice
+
+
+# ---- images ------------------------------------------------------------------------------
+def _fake_ocr(calls):
+    def f(png, lang, cloud=True, psm="3"):
+        import io
+        from PIL import Image
+        w, h = Image.open(io.BytesIO(png)).size
+        calls.append((w, h, cloud))
+        # pretend text is only readable when the picture is upright (portrait)
+        return ("EMD Rs 54,980 Bid closing 17-09-2026 " * 3 if h >= w else "x"), None
+    return f
+
+
+def test_image_screenshot_is_ocrd_and_enlarged(tmp_path, monkeypatch):
+    from PIL import Image
+    calls = []
+    monkeypatch.setattr(ingest, "_ocr_png", _fake_ocr(calls))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    f = tmp_path / "LotDetails.png"
+    Image.new("RGB", (900, 1200), "white").save(f)
+    t = ingest.read_files([f])
+    assert len(t.pages) == 1 and t.pages[0].ocr and "54,980" in t.pages[0].text
+    assert calls[0][0] >= 1800                       # small screenshot enlarged for OCR
+    assert t.role("LotDetails.png") == "main"
+    assert any("image read with OCR" in w for w in t.warnings)
+
+
+def test_image_sideways_retry_tiny_skip_and_tiff(tmp_path, monkeypatch):
+    from PIL import Image
+    calls = []
+    monkeypatch.setattr(ingest, "_ocr_png", _fake_ocr(calls))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "_tesseract_executable", lambda: "tesseract")
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    side = tmp_path / "photo.jpg"
+    Image.new("RGB", (2400, 1600), "white").save(side)          # landscape = sideways page
+    t = ingest.read_files([side])
+    assert "54,980" in t.pages[0].text
+    assert any(c[2] is False for c in calls)                   # rotation retries are local only
+    tiny = tmp_path / "logo.png"
+    Image.new("RGB", (120, 80), "white").save(tiny)
+    t = ingest.read_files([tiny])
+    assert not t.pages and any("too small" in w for w in t.warnings)
+    tif = tmp_path / "scan.tif"
+    a = Image.new("RGB", (1700, 2300), "white")
+    a.save(tif, save_all=True, append_images=[a.copy()])
+    assert [p.number for p in ingest.read_files([tif]).pages] == [1, 2]
+
+
+def test_exif_orientation_is_applied():
+    from PIL import Image
+    img = Image.new("RGB", (2000, 1000), "white")
+    exif = img.getexif()
+    exif[0x0112] = 6                                           # "rotate 90" phone photo
+    import io
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", exif=exif)
+    out = ingest._prepare_image(Image.open(io.BytesIO(buf.getvalue())))
+    assert out.size[1] > out.size[0] and out.mode == "L"
+
+
+def test_pictures_inside_word_are_read(tmp_path, monkeypatch):
+    import docx
+    from PIL import Image
+    monkeypatch.setattr(ingest, "_ocr_png", _fake_ocr([]))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    pic = tmp_path / "annex.png"
+    Image.new("RGB", (1600, 2200), "white").save(pic)
+    logo = tmp_path / "logo.png"
+    Image.new("RGB", (100, 60), "white").save(logo)
+    d = docx.Document()
+    d.add_paragraph("Notice inviting tender for services.")
+    d.add_picture(str(pic))
+    d.add_picture(str(logo))
+    f = tmp_path / "nit.docx"
+    d.save(f)
+    t = ingest.read_files([f])
+    assert any(p.ocr and "54,980" in p.text for p in t.pages)
+    assert any("1 picture(s) inside the document" in w for w in t.warnings)
+
+
+def test_large_photo_upload_is_shrunk(tmp_path):
+    import os
+    from PIL import Image
+    f = tmp_path / "big.png"
+    Image.frombytes("RGB", (4200, 3000), os.urandom(4200 * 3000 * 3)).save(f)
+    before = f.stat().st_size
+    ingest.shrink_image_upload(f)
+    assert f.stat().st_size < before * 0.7
+    assert max(Image.open(f).size) <= ingest.IMG_MAX_SIDE
+    small = tmp_path / "s.png"
+    Image.new("RGB", (800, 600), "white").save(small)
+    b = small.read_bytes()
+    ingest.shrink_image_upload(small)
+    assert small.read_bytes() == b
+
+
+# ---- hard-to-read pages: AI reads a few --------------------------------------------------
+GARBAGE = "~ ’ ' :, \\ —— ;f, 1 li\\ ~% 7~ ’! ~ ,, ‘a \\ j¥ % ~~ —_ ri) , 4 &% sh. ——. . \\ ef ~ { ,"
+
+
+def _ink_image(path, size=(1600, 2200)):
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", size, "white")
+    d = ImageDraw.Draw(img)
+    for y in range(100, size[1] - 100, 40):
+        d.line([(100, y), (size[0] - 100, y + 10)], fill="black", width=6)   # "handwriting"
+    img.save(path)
+
+
+def test_handwriting_goes_to_ai_within_budget(tmp_path, monkeypatch):
+    from tender_synopsis import llm
+    monkeypatch.setattr(ingest, "_ocr_png", lambda png, lang, cloud=True, psm="3": (GARBAGE, None))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "_tesseract_executable", lambda: None)
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    calls = []
+
+    def fake_vision(img, mime="image/jpeg"):
+        calls.append(len(img))
+        return "Bridge Panel 1 | 18x3 | 54 sq m | FEASIBLE", {"input_tokens": 900, "output_tokens": 40}
+    monkeypatch.setattr(llm, "vision_transcribe", fake_vision)
+    monkeypatch.setenv("AI_IMAGE_MAX_PAGES", "1")
+    a, b = tmp_path / "feasibility1.jpg", tmp_path / "feasibility2.jpg"
+    _ink_image(a)
+    _ink_image(b, (1700, 2300))                             # a different page
+    t = ingest.read_files([a, b])
+    assert len(calls) == 1 and max(calls) < 400_000          # one small image sent, budget kept
+    assert "18x3" in t.pages[0].text and "Read by AI" in t.pages[0].text
+    assert t.ai_pages == 1 and t.ai_usage["input_tokens"] == 900
+    assert any("AI reading limit" in w for w in t.warnings)  # second page: limit reached, flagged
+
+
+def test_good_ocr_and_blank_pages_never_use_ai(tmp_path, monkeypatch):
+    from PIL import Image
+    from tender_synopsis import llm
+    monkeypatch.setattr(ingest, "_ocr_png", lambda png, lang, cloud=True, psm="3":
+                        ("Earnest Money Deposit Rs 54,980 payable online before 17.09.2026 " * 3, None))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(llm, "vision_transcribe", lambda *a, **k: (_ for _ in ()).throw(AssertionError("AI used")))
+    f = tmp_path / "scan.png"
+    _ink_image(f)
+    assert "54,980" in ingest.read_files([f]).pages[0].text
+    assert not ingest.ocr_looks_unreliable("", Image.new("L", (1600, 2200), 255))   # blank page
+
+
+def test_ai_reading_can_be_switched_off(tmp_path, monkeypatch):
+    from tender_synopsis import llm
+    monkeypatch.setattr(ingest, "_ocr_png", lambda png, lang, cloud=True, psm="3": (GARBAGE, None))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "_tesseract_executable", lambda: None)
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(llm, "vision_transcribe", lambda *a, **k: (_ for _ in ()).throw(AssertionError("AI used")))
+    monkeypatch.setenv("AI_IMAGE_READING", "off")
+    f = tmp_path / "photo.jpg"
+    _ink_image(f)
+    t = ingest.read_files([f])
+    assert any("could not read this reliably" in w for w in t.warnings)
+
+
+def test_vision_failure_does_not_block_provider(monkeypatch):
+    from tender_synopsis import llm
+    llm.reset_fallback_state()
+    from openai import APIError
+    import httpx
+    P = llm.Provider("LLM", "k", "https://x", "m")
+    monkeypatch.setattr(llm, "providers", lambda: [P])
+
+    def boom(*a, last=True):
+        raise APIError("model not found 404 image input", httpx.Request("POST", "https://x"), body=None)
+    try:
+        llm._with_fallback(boom, b"img", "image/jpeg", mark_dead=False)
+    except llm.LLMError:
+        pass
+    assert "LLM" not in llm._DEAD                            # main synopsis can still use it

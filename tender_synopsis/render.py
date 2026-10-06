@@ -226,5 +226,5 @@ def render_docx(syn: Synopsis, out_path: str | Path, source_files: list[str] | N
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(out_path)
+    doc.save(str(out_path))
     return out_path

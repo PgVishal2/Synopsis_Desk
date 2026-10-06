@@ -158,6 +158,10 @@ def generate(files: list[str | Path], out_dir: str | Path = "output", detail: st
     say("Writing the synopsis…")
     syn, usage = llm.structured_call(system, build_user_prompt(packed.text), Synopsis)
     usage = llm._merge_usage(packed.usage, usage) if packed.usage else usage
+    if tender.ai_pages:                     # hard-to-read pages the AI read from their images
+        for k in ("input_tokens", "output_tokens"):
+            usage[k] = (usage.get(k) or 0) + (tender.ai_usage.get(k) or 0)
+        usage["ai_image_pages"] = tender.ai_pages
     usage["seconds"] = round(time.time() - t0, 1)
     usage["input_mode"] = packed.mode
     say("Checking figures against the tender…")

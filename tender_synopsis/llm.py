@@ -66,7 +66,6 @@ def _client():
     from openai import OpenAI
 
     p = _ACTIVE or providers()[0]
-    timeout = _settings()["timeout"]
     if p.slot == "LLM":
         from .env import key_report
         ok, report = key_report()
@@ -76,9 +75,9 @@ def _client():
         raise LLMError(f"{p.slot}_MODEL is empty in .env.")
     if _google_header_mode(p):
         import httpx
-        return OpenAI(api_key=p.key, base_url=p.base_url or None, timeout=timeout,
-                      http_client=httpx.Client(timeout=timeout, event_hooks={"request": [_to_goog_header]}))
-    return OpenAI(api_key=p.key, base_url=p.base_url or None, timeout=timeout)
+        return OpenAI(api_key=p.key, base_url=p.base_url or None, timeout=600,
+                      http_client=httpx.Client(timeout=600, event_hooks={"request": [_to_goog_header]}))
+    return OpenAI(api_key=p.key, base_url=p.base_url or None, timeout=600)
 
 
 # Google's new Gemini "auth keys" (AQ.…) are rejected by some endpoints when sent the OpenAI way
@@ -121,8 +120,10 @@ LASTING = ("api key", "api_key", "401", "403", "unauthenticated", "per day", "pe
            "decommissioned")
 
 
-def _with_fallback(fn, *args):
-    """Run fn on each provider in turn until one succeeds. Returns (result, usage)."""
+def _with_fallback(fn, *args, mark_dead: bool = True):
+    """Run fn on each provider in turn until one succeeds. Returns (result, usage).
+    mark_dead=False: a failure here (e.g. a text-only model refusing an image) does not stop
+    that provider from being used for the synopsis itself."""
     global _ACTIVE
     from openai import APIError
     plist = providers()
@@ -144,7 +145,7 @@ def _with_fallback(fn, *args):
         except (LLMError, APIError) as e:
             msg = friendly(e)
             failures.append(f"{p.label}: {msg[:160]}")
-            if any(w in str(e).lower() or w in msg.lower() for w in LASTING):
+            if mark_dead and any(w in str(e).lower() or w in msg.lower() for w in LASTING):
                 _DEAD[p.slot] = msg[:80]
             if i == len(live) - 1:
                 if len(failures) > 1:
@@ -217,8 +218,7 @@ def model_name() -> str:
 
 def _settings() -> dict:
     return {"mode": os.getenv("LLM_JSON_MODE", "auto").lower(),        # auto | strict | json | plain
-            "timeout": int(os.getenv("LLM_TIMEOUT_SECONDS", "180")),
-            "retries": int(os.getenv("LLM_RETRIES", "0")),
+            "retries": int(os.getenv("LLM_RETRIES", "4")),
             "repairs": int(os.getenv("LLM_REPAIR_ATTEMPTS", "3")),
             "max_out": int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "0")) or None}
 
@@ -264,8 +264,38 @@ def _retry_after(e) -> float | None:
 
 def _is_auth(e: Exception) -> bool:
     low = str(e).lower()
-    return ("api key" in low or "api_key" in low or "authorization" in low
-            or "401" in str(e) or "unauthenticated" in low)
+    return "api key" in low or "api_key" in low or "401" in str(e) or "unauthenticated" in low
+
+
+VISION_PROMPT = """\
+You transcribe one page of a tender document from an image (often handwriting, a phone photo
+or a poor scan). Copy what is written - do not summarise, explain or correct it.
+- Keep the reading order. Put each table row on one line, cells separated by " | ".
+- Copy every number, date, amount, unit and reference exactly as written (e.g. 18x3, 54 sq m).
+- Anything you cannot read with confidence: write [illegible]. Never guess or complete a word
+  or a number. Ignore signatures, stamps and logos unless they contain text or dates.
+Return plain text only."""
+
+
+def vision_transcribe(image: bytes, mime: str = "image/jpeg") -> tuple[str, dict]:
+    """Read a hard-to-OCR page image with a vision-capable model (tried in provider order;
+    text-only models are skipped without affecting the synopsis call)."""
+    return _with_fallback(_vision_one, image, mime, mark_dead=False)
+
+
+def _vision_one(image: bytes, mime: str, last: bool = True) -> tuple[str, dict]:
+    import base64
+    _LAST["flag"] = last
+    client, model = _client(), model_name()
+    url = f"data:{mime};base64," + base64.b64encode(image).decode()
+    resp = _create(client, model=model, max_tokens=3000, messages=[
+        {"role": "system", "content": VISION_PROMPT},
+        {"role": "user", "content": [{"type": "text", "text": "Transcribe this page."},
+                                     {"type": "image_url", "image_url": {"url": url}}]}])
+    text = (resp.choices[0].message.content or "").strip()
+    if len(text) < 5:
+        raise LLMError("The model returned no text for the image.")
+    return text, _usage(resp)
 
 
 def structured_call(system: str, user: str, schema: type[T]) -> tuple[T, dict]:

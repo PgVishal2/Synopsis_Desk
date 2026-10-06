@@ -1,4 +1,4 @@
-"""Read tender files (PDF / DOCX / TXT) into page-numbered text.
+"""Read tender files (PDF / DOCX / TXT / images) into page-numbered text.
 
 - Text PDFs: text is extracted page by page (PyMuPDF).
 - Scanned pages (little or no text): OCR.Space when configured, then Tesseract.
@@ -6,6 +6,13 @@
   image (scanned tables pasted into a text PDF), are OCR'd as well.
 - Sideways (rotated) pages are straightened before reading so tables keep their rows.
 - Digital-signature stamp text ("Signature Not Verified / Digitally signed by ...") is removed.
+- Images (screenshots, photos, scans: PNG, JPG, WEBP, BMP, TIFF incl. multi-page) are
+  straightened, converted to greyscale, resized to an OCR-friendly size and read with the same
+  OCR as scanned pages - no AI "vision" call, so they cost no AI credits.
+- Pictures pasted inside Word files (e.g. a scanned annexure) are read the same way.
+- Last resort for pages OCR cannot read reliably (handwriting, phone photos, poor scans):
+  the page image is read by the AI (vision), for a few pages per tender only - see
+  AI_IMAGE_READING / AI_IMAGE_MAX_PAGES.
 - Each file gets a role (main tender, corrigendum, special conditions, site list, standard
   conditions, general policy...) used to rank documents - see ROLES.
 - Bilingual (Hindi + English) pages: Devanagari is dropped when the page is
@@ -83,6 +90,9 @@ class TenderText:
     pages: list[Page] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     roles: dict[str, str] = field(default_factory=dict)      # file name -> role key
+    ai_usage: dict = field(default_factory=dict)              # tokens spent reading images by AI
+    ai_pages: int = 0                                         # pages read by AI this run
+    ai_budget: int = 0                                        # pages AI may still read this run
 
     def role(self, file: str) -> str:
         return self.roles.get(file, "other")
@@ -273,9 +283,9 @@ def _tesseract_executable() -> str | None:
     return None
 
 
-def _ocr_png(png: bytes, lang: str) -> tuple[str, str | None]:
+def _ocr_png(png: bytes, lang: str, cloud: bool = True, psm: str = "3") -> tuple[str, str | None]:
     cloud_error = None
-    if _cloud_allowed():
+    if cloud and _cloud_allowed():
         try:
             cloud_text = _ocr_space(png)
             if not isinstance(cloud_text, str) or len(cloud_text.strip()) < MIN_OCR_TEXT:
@@ -294,7 +304,7 @@ def _ocr_png(png: bytes, lang: str) -> tuple[str, str | None]:
     with tempfile.TemporaryDirectory() as tmp:
         img = Path(tmp) / "p.png"
         img.write_bytes(png)
-        res = subprocess.run([executable, str(img), "stdout", "-l", lang, "--psm", "3"],
+        res = subprocess.run([executable, str(img), "stdout", "-l", lang, "--psm", psm],
                              capture_output=True, text=True, timeout=300,
                              env={**os.environ, "OMP_THREAD_LIMIT": "1"})
     if res.returncode:
@@ -326,9 +336,19 @@ CACHE_DIR = Path(tempfile.gettempdir()) / "tender_synopsis_cache"
 
 def read_pdf(path: Path, result: TenderText) -> None:
     """Reads a PDF; OCR results are cached by file hash so re-runs are instant."""
+    _cached(path, result, _read_pdf, b"ocr-space-tesseract-fallback-v4-stamps-rotation-images")
+
+
+def read_image(path: Path, result: TenderText) -> None:
+    """Reads an image file with OCR; cached like PDFs."""
+    _cached(path, result, _read_image, b"image-v2-psm4")
+
+
+def _cached(path: Path, result: TenderText, reader, tag: bytes) -> None:
     import hashlib
     import json
-    digest = hashlib.sha256(path.read_bytes() + b"\0ocr-space-tesseract-fallback-v4-stamps-rotation-images").hexdigest()[:32]
+    tag += b"-ai" if _ai_budget() else b""             # AI-read text differs from OCR-only text
+    digest = hashlib.sha256(path.read_bytes() + b"\0" + tag).hexdigest()[:32]
     cache = CACHE_DIR / f"{digest}.json"
     if cache.exists():
         data = json.loads(cache.read_text(encoding="utf-8"))
@@ -338,7 +358,7 @@ def read_pdf(path: Path, result: TenderText) -> None:
         result.warnings += data["warnings"]
         return
     before_p, before_w = len(result.pages), len(result.warnings)
-    _read_pdf(path, result)
+    reader(path, result)
     CACHE_DIR.mkdir(exist_ok=True)
     cache.write_text(json.dumps({
         "pages": [{"n": p.number, "t": p.text, "ocr": p.ocr} for p in result.pages[before_p:]],
@@ -364,7 +384,7 @@ def _image_share(page) -> float:
 
 def _read_pdf(path: Path, result: TenderText) -> None:
     doc = pymupdf.open(path)
-    texts, scanned, merge = {}, {}, set()
+    texts, scanned, merge, failed = {}, {}, set(), set()
     rotated = 0
     for i, page in enumerate(doc, start=1):
         if page.rotation:                      # sideways pages: straighten so tables keep rows
@@ -396,9 +416,27 @@ def _read_pdf(path: Path, result: TenderText) -> None:
                     if fallback:
                         result.warnings.append(f"{path.name} p{i}: {fallback}")
                 except Exception as e:  # keep going; flag it
-                    scanned.pop(i)
-                    what = "image on page not read" if i in merge else "OCR failed"
-                    result.warnings.append(f"{path.name} p{i}: {what} ({e})")
+                    if i not in merge:
+                        texts[i] = ""          # whole page unreadable: AI may still read it below
+                        failed.add(i)
+                    else:
+                        scanned.pop(i)
+                        result.warnings.append(f"{path.name} p{i}: image on page not read ({e})")
+        # pages OCR could not read reliably (handwriting, phone photo, poor scan): AI reads a few
+        for i in sorted(scanned):
+            if i in merge:
+                continue
+            img = _pil(scanned[i])
+            if not ((i in failed and _ink(img) > 0.03)
+                    or ocr_looks_unreliable(strip_signature_stamps(texts[i]), img)):
+                if i in failed:
+                    result.warnings.append(f"{path.name} p{i}: blank page or no text found.")
+                continue
+            ai = _ai_read(img, result, f"{path.name} p{i}")
+            if ai:
+                texts[i] = ai
+            elif i in failed:
+                result.warnings.append(f"{path.name} p{i}: OCR failed - page not read.")
     for i in sorted(texts):
         result.pages.append(Page(path.name, i, _clean(texts[i]), i in scanned))
     if rotated:
@@ -409,7 +447,243 @@ def _read_pdf(path: Path, result: TenderText) -> None:
                                "check figures carefully.")
 
 
-def read_docx(path: Path, result: TenderText, words_per_page: int = 450) -> None:
+# ---- Images ------------------------------------------------------------------------------
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+IMG_MAX_SIDE = 3500       # ~A4 at 300 dpi; larger photos are shrunk (no accuracy gain beyond)
+IMG_MIN_WIDTH = 1800      # small screenshots are enlarged so OCR sees bigger letters
+IMG_MIN_SIDE = 300        # smaller than this is a logo / icon, not a document
+IMG_MAX_FRAMES = 60       # pages read from one multi-page TIFF
+DOCX_MAX_IMAGES = 15      # pictures OCR'd from one Word file
+_ROTATIONS = (90, 270, 180)
+
+
+def _prepare_image(img):
+    """Upright, greyscale, OCR-sized copy of one image frame (Pillow image) or None."""
+    from PIL import Image, ImageOps
+    try:
+        img = ImageOps.exif_transpose(img)        # phone photos taken sideways
+    except Exception:
+        pass
+    if img.mode in ("RGBA", "LA", "P"):
+        img = img.convert("RGBA")
+        bg = Image.new("RGBA", img.size, "white")
+        img = Image.alpha_composite(bg, img)
+    img = img.convert("L")
+    w, h = img.size
+    if min(w, h) < IMG_MIN_SIDE:
+        return None
+    if max(w, h) > IMG_MAX_SIDE:
+        img.thumbnail((IMG_MAX_SIDE, IMG_MAX_SIDE), Image.LANCZOS)
+    elif w < IMG_MIN_WIDTH:
+        f = min(2.5, IMG_MIN_WIDTH / w)
+        img = img.resize((int(w * f), int(h * f)), Image.LANCZOS)
+    return img
+
+
+def _png(img) -> bytes:
+    import io
+    buf = io.BytesIO()
+    img.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _ocr_image(img, lang: str) -> tuple[str, str | None]:
+    """OCR one prepared image. If almost nothing is read, the picture may be sideways without
+    orientation info: retry turned 90 / 270 / 180 degrees with local Tesseract only (free)."""
+    # psm 4 keeps each table row on one line (label next to its value) in screenshots
+    text, note = _ocr_png(_png(img), lang, psm="4")
+    if len(text.strip()) >= 40 or not _tesseract_executable():
+        return text, note
+    best = text
+    for angle in _ROTATIONS:
+        try:
+            t, _ = _ocr_png(_png(img.rotate(angle, expand=True)), lang, cloud=False, psm="4")
+        except Exception:
+            continue
+        if len(t.strip()) > len(best.strip()):
+            best = t
+        if len(best.strip()) >= 40:
+            break
+    return best, note
+
+
+# ---- Hard-to-read pages: OCR quality check, then AI reading for a few pages --------------
+_GOOD_WORD = re.compile(r"[(\[\"'‘“]?[A-Za-z0-9₹ऀ-ॿ][A-Za-z0-9₹ऀ-ॿ.,/:%×&'’-]*[)\].,:;।'’\"”]*")
+
+
+def _pil(png: bytes):
+    import io
+    from PIL import Image
+    return Image.open(io.BytesIO(png))
+
+
+def _ink(img) -> float:
+    """Share of dark pixels in a greyscale image (how much is written on the page)."""
+    hist = img.convert("L").histogram()
+    return sum(hist[:128]) / max(1, sum(hist))
+
+
+def ocr_looks_unreliable(text: str, img=None) -> bool:
+    """True when OCR output looks like noise: handwriting, blurred photos, poor scans.
+    A blank page is not unreliable - there is simply nothing on it."""
+    t = text.strip()
+    words = [w for w in t.split() if re.search(r"\w", w)]
+    if len(t) < 40:
+        return img is not None and _ink(img) > 0.03       # writing on the page, almost no text
+    good = sum(1 for w in words if _GOOD_WORD.fullmatch(w) and len(re.sub(r"\W", "", w)) >= 2
+               or w.isdigit())
+    chars = re.sub(r"\s", "", t)
+    alnum = sum(c.isalnum() for c in chars) / max(1, len(chars))
+    short = sum(len(re.sub(r"\W", "", w)) <= 2 for w in words) / max(1, len(words))
+    return good / max(1, len(words)) < 0.55 or alnum < 0.65 or (len(words) > 20 and short > 0.5)
+
+
+def _ai_budget() -> int:
+    if os.getenv("AI_IMAGE_READING", "on").lower() in ("0", "off", "false", "no"):
+        return 0
+    return max(0, int(os.getenv("AI_IMAGE_MAX_PAGES", "8")))
+
+
+def _jpeg_for_ai(img) -> bytes:
+    """Small greyscale JPEG: enough detail for the AI, few tokens."""
+    import io
+    im = img.convert("L")
+    im.thumbnail((1600, 1600))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=82)
+    return buf.getvalue()
+
+
+def _ai_read(img, result: TenderText, where: str) -> str | None:
+    """Read one page image with the AI. Returns the text, or None (budget used up / failed)."""
+    if result.ai_budget <= 0:
+        result.warnings.append(f"{where}: OCR could not read this reliably (handwriting / photo "
+                               "/ poor scan) and the AI reading limit for this tender was reached "
+                               "- check this page yourself or upload a clearer copy.")
+        return None
+    from . import llm
+    result.ai_budget -= 1
+    try:
+        text, usage = llm.vision_transcribe(_jpeg_for_ai(img))
+    except Exception as e:                                  # noqa: BLE001 - keep the run going
+        result.warnings.append(f"{where}: OCR could not read this reliably and the AI could not "
+                               f"read it either ({str(e)[:120]}) - upload a clearer scan or photo.")
+        return None
+    result.ai_usage = llm._merge_usage(result.ai_usage, usage)
+    result.ai_pages += 1
+    result.warnings.append(f"{where}: OCR could not read this reliably (handwriting / photo / "
+                           "poor scan), so the AI read it - check its figures.")
+    return "[Read by AI from a hard-to-read image - check figures]\n" + text
+
+
+def _read_image(path: Path, result: TenderText) -> None:
+    from PIL import Image, ImageSequence
+    try:
+        im = Image.open(path)
+        frames = [f.copy() for f in ImageSequence.Iterator(im)][:IMG_MAX_FRAMES]
+    except Exception as e:
+        result.warnings.append(f"{path.name}: image could not be opened ({e}).")
+        return
+    lang = _available_ocr_lang()
+    n_read = 0
+    for i, frame in enumerate(frames, start=1):
+        img = _prepare_image(frame)
+        if img is None:
+            result.warnings.append(f"{path.name} p{i}: image too small to read, skipped.")
+            continue
+        try:
+            text, note = _ocr_image(img, lang)
+        except Exception as e:
+            text, note = "", f"OCR failed ({e})"
+        if ocr_looks_unreliable(text, img):
+            text = _ai_read(img, result, f"{path.name} p{i}") or text
+        if note:
+            result.warnings.append(f"{path.name} p{i}: {note}")
+        if not text.strip():
+            continue
+        result.pages.append(Page(path.name, i, _clean(text), True))
+        n_read += 1
+    if n_read:
+        result.warnings.append(f"{path.name}: image read with OCR ({n_read} page(s)) - "
+                               "check figures carefully.")
+
+
+def _docx_images(d) -> list[bytes]:
+    """Picture files inside a Word document, largest first, duplicates removed."""
+    seen, out = set(), []
+    for rel in d.part.rels.values():
+        if "image" not in rel.reltype:
+            continue
+        try:
+            blob = rel.target_part.blob
+        except Exception:
+            continue
+        if blob[:64] in seen:
+            continue
+        seen.add(blob[:64])
+        out.append(blob)
+    return sorted(out, key=len, reverse=True)[:DOCX_MAX_IMAGES]
+
+
+def _docx_image_text(path: Path, d, result: TenderText) -> list[str]:
+    """OCR the pictures pasted in a Word file (scanned annexures, tables as images)."""
+    import io
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+    texts, lang = [], None
+    for blob in _docx_images(d):
+        try:
+            img = _prepare_image(Image.open(io.BytesIO(blob)))
+        except Exception:
+            continue
+        if img is None:
+            continue                               # logos, icons, signatures
+        lang = lang or _available_ocr_lang()
+        try:
+            t, _ = _ocr_image(img, lang)
+        except Exception:
+            t = ""
+        if ocr_looks_unreliable(t, img):
+            t = _ai_read(img, result, f"{path.name} (picture {len(texts) + 1})") or t
+        if len(t.strip()) >= 20:
+            texts.append(t)
+    if texts:
+        result.warnings.append(f"{path.name}: {len(texts)} picture(s) inside the document read "
+                               "with OCR - check figures carefully.")
+    return texts
+
+
+def shrink_image_upload(path: Path) -> None:
+    """Storage saver for uploaded photos: shrink very large images (and save as greyscale JPEG
+    when that is much smaller). Keeps every detail OCR needs; screenshots are left alone."""
+    if path.suffix.lower() not in IMAGE_EXTS or path.stat().st_size < 1_500_000:
+        return
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(path) as im:
+            if getattr(im, "n_frames", 1) > 1:
+                return                              # multi-page TIFF: keep as is
+            img = ImageOps.exif_transpose(im).convert("L")
+        if max(img.size) > IMG_MAX_SIDE:
+            img.thumbnail((IMG_MAX_SIDE, IMG_MAX_SIDE), Image.LANCZOS)
+        tmp = path.with_suffix(".tmp.jpg")
+        img.save(tmp, "JPEG", quality=88, optimize=True)
+        if tmp.stat().st_size < path.stat().st_size * 0.7:
+            tmp.replace(path)                       # same name, so links / roles still match
+        else:
+            tmp.unlink()
+    except Exception:
+        pass                                        # never block an upload over this
+
+
+def read_docx(path: Path, result: TenderText) -> None:
+    """Word file; cached because pictures inside it may need OCR."""
+    _cached(path, result, _read_docx, b"docx-v2-pictures")
+
+
+def _read_docx(path: Path, result: TenderText, words_per_page: int = 450) -> None:
     """DOCX has no fixed pages, so text is split into ~450-word pseudo-pages."""
     import docx  # python-docx
     d = docx.Document(path)
@@ -430,6 +704,11 @@ def read_docx(path: Path, result: TenderText, words_per_page: int = 450) -> None
             page, count, n = [], 0, n + 1
     if page:
         result.pages.append(Page(path.name, n, _clean("\n".join(page))))
+        n += 1
+    pics = _docx_image_text(path, d, result)
+    if pics:
+        result.pages.append(Page(path.name, n, _clean(
+            "[Text read from pictures in this document]\n\n" + "\n\n---\n\n".join(pics)), True))
 
 
 _DOC_LINK = re.compile(r"\.pdf\b|download|biddoc|upload|\.docx?\b|\.xlsx?\b|\.zip\b", re.I)
@@ -468,7 +747,7 @@ def _missing_links(links: dict[str, list[str]], uploaded: list[str]) -> list[str
 
 def read_files(paths: list[str | Path]) -> TenderText:
     """Read one tender made of one or more files (main doc, corrigenda, annexures)."""
-    result = TenderText()
+    result = TenderText(ai_budget=_ai_budget())
     links: dict[str, list[str]] = {}
     for p in map(Path, paths):
         ext = p.suffix.lower()
@@ -477,6 +756,8 @@ def read_files(paths: list[str | Path]) -> TenderText:
             links[p.name] = _linked_docs(p)
         elif ext == ".docx":
             read_docx(p, result)
+        elif ext in IMAGE_EXTS:
+            read_image(p, result)
         elif ext in (".txt", ".md"):
             result.pages.append(Page(p.name, 1, _clean(p.read_text(errors="ignore"))))
         else:

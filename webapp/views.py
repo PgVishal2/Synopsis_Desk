@@ -10,7 +10,7 @@ from flask import (Blueprint, abort, flash, jsonify, redirect, render_template, 
 from . import auth, db, jobs
 
 bp = Blueprint("main", __name__)
-ALLOWED = {".pdf", ".docx", ".txt"}
+ALLOWED = {".pdf", ".docx", ".txt", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
 
 # ------------------------------------------------------------------ helpers
@@ -113,8 +113,8 @@ def new():
         if not files:
             flash("Add at least one tender document.", "error")
         elif bad:
-            flash("These files can't be read: " + ", ".join(bad) + ". Use PDF, Word (.docx) "
-                  "or text files.", "error")
+            flash("These files can't be read: " + ", ".join(bad) + ". Use PDF, Word (.docx), "
+                  "images (PNG, JPG, TIFF…) or text files.", "error")
         else:
             job_id = jobs.new_job(files, request.form.get("mode", "detailed"),
                                   request.form.get("double_check") == "on")

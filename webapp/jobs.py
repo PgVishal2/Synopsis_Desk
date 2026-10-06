@@ -28,6 +28,7 @@ def bid_check_enabled() -> bool:
 def new_job(uploads: list, mode: str, double_check: bool) -> str:
     """uploads: werkzeug FileStorage objects. Saves them and queues the job."""
     from werkzeug.utils import secure_filename
+    from tender_synopsis.ingest import shrink_image_upload
     job_id = uuid.uuid4().hex[:12]
     inp = db.job_dir(job_id) / "input"
     inp.mkdir(parents=True, exist_ok=True)
@@ -37,6 +38,7 @@ def new_job(uploads: list, mode: str, double_check: bool) -> str:
         while name in names:
             name = "_" + name
         f.save(inp / name)
+        shrink_image_upload(inp / name)          # large photos: smaller copy, same name
         names.append(name)
     db.create_job(job_id, names, mode, double_check)
     _pool.submit(_run, job_id)
