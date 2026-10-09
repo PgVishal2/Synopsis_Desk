@@ -119,7 +119,9 @@ weekends) cost half. Re-running the same files is cheaper (cached input). OCR co
 
 1. Text pages are read directly – no OCR.
 2. Scanned pages, pages that are mostly an image, and pages whose only text is a digital-signature
-   stamp go to **OCR.space** (if `OCR_SPACE_API_KEY` is set).
+   stamp go to **OCR.space** (if `OCR_SPACE_API_KEY` is set). Scanned PDFs often carry the
+   scanner's own hidden text; where that text is scrambled (common in tables) the page is read
+   again by OCR, and if many pages are scrambled every scanned page of that file is re-read.
 3. If OCR.space fails for a page, **Tesseract** (English + Hindi, installed in the server image)
    reads it instead. After 3 failures in a row OCR.space is paused for 10 minutes.
 4. Sideways pages are straightened; "Digitally signed by… / Signature Not Verified" text is removed.

@@ -667,3 +667,84 @@ def test_vision_failure_does_not_block_provider(monkeypatch):
     except llm.LLMError:
         pass
     assert "LLM" not in llm._DEAD                            # main synopsis can still use it
+
+
+# ---- v20: scanned PDFs with scrambled scanner text, number reading, qualifying score ----------
+JUMBLE = ("1 S art d a o I d own o a d n s nd d o c u m n 23.09.2026 3:00 PM "
+          "L a S d a e fo t k n o c a T fi o n f a n v 29.09.2026 ") * 6
+CLEAN_OCR = "Start date of downloading tender document 23.09.2026 3:00 PM\n" * 3
+
+
+def _scan_pdf(path, layer_texts):
+    """A 'scanned' PDF: each page is one full-page picture plus the scanner's hidden text."""
+    import io
+    import pymupdf
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("L", (600, 800), 255).save(buf, "PNG")
+    doc = pymupdf.open()
+    for txt in layer_texts:
+        page = doc.new_page()
+        page.insert_image(page.rect, stream=buf.getvalue())
+        page.insert_textbox(pymupdf.Rect(36, 36, 560, 800), txt, fontsize=7, render_mode=3)
+    doc.save(path)
+
+
+def test_scrambled_scanner_text_is_read_again(tmp_path, monkeypatch):
+    monkeypatch.setattr(ingest, "_ocr_png", lambda png, lang, cloud=True, psm="3": (CLEAN_OCR, None))
+    monkeypatch.setattr(ingest, "_available_ocr_lang", lambda: "eng")
+    monkeypatch.setattr(ingest, "CACHE_DIR", tmp_path / "cache")
+    good = "Earnest Money Deposit of Rs. 1.00 Lakh payable by demand draft before opening. " * 20
+    f = tmp_path / "rfp.pdf"
+    _scan_pdf(f, [JUMBLE, good, good, good, good, good])     # 1 of 6 scrambled (< 20%)
+    t = ingest.read_files([f])
+    assert "Start date of downloading" in t.pages[0].text and t.pages[0].ocr
+    assert "Earnest Money" in t.pages[1].text and not t.pages[1].ocr   # good text kept as is
+    g = tmp_path / "rfp2.pdf"
+    _scan_pdf(g, [JUMBLE, JUMBLE, good, good, good])          # many scrambled: re-read all
+    t2 = ingest.read_files([g])
+    assert all(p.ocr and "Start date" in p.text for p in t2.pages)
+
+
+def test_text_pdfs_are_never_reread():
+    assert not ingest.text_layer_jumbled("Sl. No. Name of Work Rs. in Lakh " * 20)
+    assert ingest.text_layer_jumbled(JUMBLE)
+
+
+def test_numbers_written_lakh_fy_and_scan_slips():
+    from tender_synopsis.verify import _numbers
+    assert "100000" in _numbers("EMD of Rs. 1.00 (one) Lakh only")
+    assert "100000" in _numbers("INR One (1) Lakh (refundable)")
+    assert "500000" in _numbers("five lakh")
+    assert _numbers("FY 2022-23, 2023-24, 2024-25") == _numbers("FY 2022-23,2023-24, 2024-2025")
+    assert "100000" in _numbers("Rs 1,00,000") and "2026" in _numbers("HoH t2OZ6", ocr=True)
+
+
+def test_scan_garbled_quote_is_warning_but_reworded_quote_is_error():
+    from tender_synopsis.verify import check_quotes
+    scan = Page("rfp.pdf", 6, "1 Start date of dwnlding tndr dcmnt 23.09.2026 | 3:00 PM", ocr=True)
+    text = Page("nit.pdf", 2, "Bids close on 14.10.2026 at 3:00 PM on the portal. " * 3)
+    t = TenderText(pages=[scan, text])
+    s = Synopsis.model_validate({"profile": {}, "key_facts": [
+        {"field": "download_start", "value": "23.09.2026, 3:00 PM", "file": "rfp.pdf", "page": 6,
+         "quote": "Start date of downloading documents 23.09.2026 3:00 PM"},
+        {"field": "deadline", "value": "21.10.2026", "file": "nit.pdf", "page": 2,
+         "quote": "Last date for submission of bids is 21.10.2026"}]})
+    sev = {i.field: i.severity for i in check_quotes(s, t)}
+    assert sev == {"download_start": "warning", "deadline": "error"}
+
+
+def test_quote_words_spread_over_tender_do_not_count():
+    from tender_synopsis.verify import check_requirements
+    pages = [Page("a.pdf", n, w * 30) for n, w in enumerate(
+        ["advertising ", "marketing services ", "minimum three years ", "x ", "y ", "consecutive "], 1)]
+    s = Synopsis.model_validate({"profile": {}, "requirements": [{"category": "similar_work",
+        "text": "3 years advertising", "page": 5,
+        "quote": "minimum three years consecutive advertising marketing services"}]})
+    assert check_requirements(s, TenderText(pages=pages))[0].severity == "error"
+
+
+def test_prompt_asks_for_qualifying_score_test():
+    from tender_synopsis.prompts import build_system_prompt
+    p = build_system_prompt("", "compact")
+    assert "minimum eligibility" in p and "Qualifying score" in p and "who may bid" in p

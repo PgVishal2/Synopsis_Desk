@@ -58,19 +58,52 @@ def _dates_to_tokens(s: str) -> str:
     return TXT_DATE.sub(lambda m: f" date{int(m[3]):04d}{MONTHS[m[2]]:02d}{int(m[1]):02d} ", s)
 
 
-def _numbers(s: str) -> set[str]:
-    """Significant numbers in a string, commas removed; '4 crore' -> '40000000'."""
-    s = s.replace(",", "").lower()
+_WORD_NUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+             "eight": 8, "nine": 9, "ten": 10}
+_UNIT = r"(crores?|cr|lakhs?|lacs?)\b"
+FY = re.compile(r"\b((?:19|20)\d{2})\s*[-–/]\s*((?:19|20)?\d{2})\b")
+
+
+def _fy_token(m) -> str:
+    """'2022-23' and '2022-2023' are the same financial year -> 'fy20222023'."""
+    start, end = int(m[1]), int(m[2][-2:])
+    if (start + 1) % 100 != end:
+        return m[0]                                    # not a financial year - leave as it is
+    return f" fy{start}{start + 1} "
+
+
+def _ocr_digits(s: str) -> str:
+    """In scanned text, 'O' / 'Z' inside a number are usually 0 / 2 ('2OZ6' -> '2026')."""
+    return re.sub(r"[0-9oz]{4,}", lambda m: m[0].translate(str.maketrans("oz", "02"))
+                  if sum(c.isdigit() for c in m[0]) >= 2 else m[0], s)
+
+
+def _numbers(s: str, ocr: bool = False) -> set[str]:
+    """Significant numbers in a string, commas removed; '4 crore' -> '40000000'.
+    ocr=True also repairs common scan slips inside numbers (use it for quotes and page text)."""
+    s = s.lower()
+    s = re.sub(r"(?<=\d),(?=\d{2,3}\b)", "", s)        # 1,00,000 -> 100000 (Indian grouping)
+    s = s.replace(",", " ")                            # '2022-23,2023-24' stays two numbers
+    if ocr:
+        s = _ocr_digits(s)
     # common OCR slips next to Indian units: "I crore" / "l crore" -> "1 crore", "laes" -> "lacs"
-    s = re.sub(r"\b[il|]\s+(crores?|cr|lakhs?|lacs?)\b", r"1 \1", s)
+    s = re.sub(r"\b[il|]\s+" + _UNIT, r"1 \1", s)
     s = re.sub(r"\b(la[ce]s|laes|lacks|lkh)\b", "lacs", s)
+    # "Rs. 1.00 (one) Lakh" / "One (1) Lakh" / "one lakh" -> number right next to its unit
+    s = re.sub(r"(\d)\)?\s*\([a-z ]+\)\s*" + _UNIT, r"\1 \2", s)
+    s = re.sub(r"\b(" + "|".join(_WORD_NUM) + r")\s*\((\d+(?:\.\d+)?)\)\s*" + _UNIT, r"\2 \3", s)
+    s = re.sub(r"\b(" + "|".join(_WORD_NUM) + r")\s+" + _UNIT,
+               lambda m: f"{_WORD_NUM[m[1]]} {m[2]}", s)
     s = _dates_to_tokens(s)
     out = set(re.findall(r"date\d{8}", s))
     s = re.sub(r"date\d{8}", " ", s)
+    s = FY.sub(_fy_token, s)
+    out |= set(re.findall(r"fy\d{8}", s))
+    s = re.sub(r"fy\d{8}", " ", s)
 
     def to_rupees(m):
         return str(int(round(float(m[1]) * UNITS[m[2]])))
-    s = re.sub(r"(\d+(?:\.\d+)?)\s*(crores?|cr|lakhs?|lacs?)\b", to_rupees, s)
+    s = re.sub(r"(\d+(?:\.\d+)?)\s*" + _UNIT, to_rupees, s)
     for n in re.findall(r"\d+(?:\.\d+)?", s):
         if "." in n:
             n = n.rstrip("0").rstrip(".")
@@ -80,9 +113,13 @@ def _numbers(s: str) -> set[str]:
 
 def _best_match(quote: str, text: str) -> int:
     """Fuzzy substring match; falls back to word coverage for table layouts where
-    PDF extraction interleaves columns (all quote words present nearby = match)."""
+    PDF extraction interleaves columns (all quote words present nearby = match).
+    A quote joined with '...' must match part by part (the weakest part counts)."""
     if not quote.strip() or not text.strip():
         return 0
+    parts = [p for p in re.split(r"\.{3,}|…", quote) if len(p.strip()) >= 12]
+    if len(parts) > 1:
+        return min(_best_match(p, text) for p in parts)
     q, t = _norm(quote), _norm(text)
     score = int(fuzz.partial_ratio(q, t))
     if score < QUOTE_OK:
@@ -91,6 +128,23 @@ def _best_match(quote: str, text: str) -> int:
         if words and sum(w in page_words for w in words) / len(words) >= 0.95:
             score = max(score, QUOTE_OK)
     return score
+
+
+def _best_anywhere(quote: str, tender: TenderText) -> int:
+    """Best match over every 3-page window of every file. Matching against the whole tender
+    at once would let a reworded quote 'match' words scattered over many pages."""
+    best = 0
+    by_file: dict[str, list] = {}
+    for p in tender.pages:
+        by_file.setdefault(p.file, []).append(p)
+    for pages in by_file.values():
+        pages.sort(key=lambda p: p.number)
+        for i in range(len(pages)):
+            window = "\n".join(p.text for p in pages[max(0, i - 1): i + 2])
+            best = max(best, _best_match(quote, window))
+            if best >= QUOTE_OK:
+                return best
+    return best
 
 
 def _inr(n: str) -> str:
@@ -129,6 +183,27 @@ _ABSENT = ("not prescribed", "not applicable", "not disclosed", "not stated", "n
            "no provision", "silent")
 
 
+def _scanned_near(tender: TenderText, page: int, file: str | None) -> bool:
+    """Is the cited page (or a neighbour) a scan, or text that is visibly scrambled?"""
+    from .ingest import text_layer_jumbled
+    near = [p for p in tender.pages if p.number in (page - 1, page, page + 1)
+            and (file is None or p.file == file)]
+    return any(p.ocr or text_layer_jumbled(p.text) for p in near)
+
+
+def _unmatched_quote(tender: TenderText, page: int, file: str | None, value: str,
+                     field_name: str, plain: str) -> Issue:
+    """Quote wording not found. On a scanned page, when every figure of the value IS on the
+    page, the wording was probably garbled by the scan: a check-it warning, not an error."""
+    near = "\n".join(tender.page_text(p, file) for p in (page - 1, page, page + 1))
+    figures = {n for n in _numbers(value) if len(n) > 1}
+    if figures and _scanned_near(tender, page, file) and figures <= _numbers(near, ocr=True):
+        return Issue("warning", field_name,
+                     f"Could not match the exact wording on page {page} (scanned page), but the "
+                     f"figures are there - glance at page {page} to confirm: {plain}", page or None)
+    return Issue("error", field_name, f"Source quote not found - verify: {plain}", page or None)
+
+
 def check_quotes(syn: Synopsis, tender: TenderText) -> list[Issue]:
     issues = []
     for kf in syn.key_facts:
@@ -139,17 +214,17 @@ def check_quotes(syn: Synopsis, tender: TenderText) -> list[Issue]:
         page_txt = "\n".join(tender.page_text(p, f) for p in (kf.page - 1, kf.page, kf.page + 1))
         score = _best_match(kf.quote, page_txt)
         if score < QUOTE_OK:
-            whole = _best_match(kf.quote, tender.full_text)
+            whole = _best_anywhere(kf.quote, tender)
             if whole >= QUOTE_OK:
                 issues.append(Issue("info", kf.field, f"Quote found, but not on page {kf.page}.",
                                     kf.page))
             else:
-                issues.append(Issue("error", kf.field,
-                                    f"Source quote not found in tender (match {max(score, whole)}%). "
-                                    f"Verify '{kf.value}' manually.", kf.page))
+                issues.append(_unmatched_quote(tender, kf.page, f, kf.value, kf.field,
+                                               f"'{kf.value}' (match {max(score, whole)}%)."))
                 continue
-        missing = {n for n in _numbers(kf.value) - _numbers(kf.quote) if len(n) > 1}
-        slip = _scale_slip(missing, _numbers(kf.quote))
+        quote_nums = _numbers(kf.quote, ocr=True)
+        missing = {n for n in _numbers(kf.value) - quote_nums if len(n) > 1}
+        slip = _scale_slip(missing, quote_nums)
         if slip:
             issues.append(Issue("error", kf.field,
                                 f"Amount looks wrong by a factor of 10 or more: the document says "
@@ -176,25 +251,28 @@ def check_requirements(syn: Synopsis, tender: TenderText) -> list[Issue]:
         if _norm(r.quote).startswith(_ABSENT):
             continue                       # "not stated in the documents" - nothing to find
         near = "\n".join(tender.page_text(p, r.file or None) for p in (r.page - 1, r.page, r.page + 1))
-        if max(_best_match(r.quote, near), _best_match(r.quote, tender.full_text)) < QUOTE_OK:
-            issues.append(Issue("error", name, f"Source quote not found - verify: {r.text[:80]}",
-                                r.page or None))
+        if max(_best_match(r.quote, near), _best_anywhere(r.quote, tender)) < QUOTE_OK:
+            issues.append(_unmatched_quote(tender, r.page, r.file or None,
+                                           r.text + (f" {int(r.amount_inr)}" if r.amount_inr else ""),
+                                           name, r.text[:80]))
             continue
         if r.amount_inr:
             amt = str(int(round(r.amount_inr)))
-            slip = _scale_slip({amt}, _numbers(r.quote))
+            slip = _scale_slip({amt}, _numbers(r.quote, ocr=True))
             if slip:
                 issues.append(Issue("error", name, f"Amount looks wrong by a factor of 10 or "
                                     f"more: the document says {_inr(slip[1])}, the synopsis "
                                     f"says {_inr(slip[0])}. Check the lakh / crore conversion.",
                                     r.page or None))
-            elif amt not in _numbers(r.quote):
+            elif amt not in _numbers(r.quote, ocr=True):
                 issues.append(Issue("warning", name, f"Amount {amt} not found in its quote "
                                     f"'{r.quote[:80]}' - check the conversion.", r.page or None))
     return issues
 
 
 def _pretty(n: str) -> str:
+    if n.startswith("fy"):
+        return f"FY {n[2:6]}-{n[8:10]}"
     return f"{n[10:12]}.{n[8:10]}.{n[4:8]}" if n.startswith("date") else n
 
 

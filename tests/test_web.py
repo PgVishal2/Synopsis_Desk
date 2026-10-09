@@ -28,9 +28,11 @@ def client(tmp_path, monkeypatch):
     from tender_synopsis.schema import Synopsis
 
     def fake_generate(files, out_dir, detail, double_check, name=None, profiles=None, progress=None):
-        progress and progress("Writing the synopsis…")
+        if progress:
+            progress("Writing the synopsis…")
         syn = Synopsis.model_validate(json.loads(SAMPLE.read_text()))
-        return pipeline.finish(syn, read_files(files), Path(out_dir), name, [Path(f).name for f in files],
+        return pipeline.finish(syn, read_files(files), Path(out_dir), name or Path(files[0]).stem,
+                       [Path(f).name for f in files],
                                {"model": "fake", "seconds": 3}, profiles=profiles)
     monkeypatch.setattr(pipeline, "generate", fake_generate)
     app = webapp.create_app()
@@ -40,7 +42,9 @@ def client(tmp_path, monkeypatch):
 
 def csrf(c, url):
     html = c.get(url).get_data(as_text=True)
-    return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+    match = re.search(r'name="csrf" value="([^"]+)"', html)
+    assert match is not None, "CSRF token not found in page"
+    return match.group(1)
 
 
 def test_full_flow(client):
@@ -64,6 +68,7 @@ def test_full_flow(client):
     assert r.status_code == 302
     job_url = r.headers["Location"]
     job_id = job_url.rsplit("/", 1)[-1]
+    st = {"status": "pending"}
     for _ in range(100):
         st = c.get(f"/api/jobs/{job_id}").get_json()
         if st["status"] in ("done", "failed"):

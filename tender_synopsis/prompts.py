@@ -89,6 +89,23 @@ D. When two files list the same sites / items / quantities / areas, compare them
    only" - treat it as a possible mandatory minimum, show both readings and add a review_note.
    Likewise flag who may bid when the documents describe eligible bidders differently
    (e.g. "Government of India PSUs" in one place, "Central or State PSUs" in another).
+22. Qualifying score: when marks decide who goes forward (a minimum technical score, a
+   cut-off before presentation, a minimum per criterion), show the marks table (Criterion |
+   Slabs -> marks | Max) and test it: score a bidder who meets ONLY the minimum eligibility
+   (lowest slab on every criterion tied to an eligibility minimum, full marks on the rest).
+   If even that best case is below the cut-off, say so plainly with the sum, e.g. "Bidder at
+   minimum turnover and staff can reach at most 48/80 (computed) - below the 50/80 cut-off;
+   higher turnover or staff needed" - ==yellow==, in quick_decision and a review_note.
+23. Keep eligibility wording exact: do not widen or narrow it (e.g. "digital marketing
+   services" is not "advertising and marketing services"; "consecutive years starting from
+   2022-23" is not "any 3 consecutive years"). Say who may bid when the tender limits it
+   (e.g. Indian firms only, registered in the State, OEMs only). For every experience or
+   financial criterion, the Proof column names the exact evidence asked for (e.g. "work
+   order (mandatory) + invoices or payment proof", "CA certificate with UDIN").
+24. Reference numbers exactly as printed, including handwritten or stamped parts (e.g. a
+   number written by hand before the printed reference). If something a bidder needs is
+   absent - payment terms, estimated value, a draft contract or form the index lists but the
+   file does not contain - say "Not stated" / "Listed but not attached" (review_note).
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.
@@ -173,7 +190,8 @@ CORE SECTIONS (always include, in this order; merge or rename to suit the tender
                        "JV / consortium allowed? | Not stated". Use this tender's own figures.
                        Cover: turnover, relaxations / exemptions, EMD, performance security,
                        experience, key certifications, JV, contract period, evaluation method,
-                       deadline. Answers must match the sections above and use EVERY uploaded
+                       deadline; plus "Who may bid?" when limited, and "Can a bidder at the
+                       minimum eligibility reach the qualifying score?" when marks decide. Answers must match the sections above and use EVERY uploaded
                        file (e.g. a GeM bid's relaxation fields count even if the NIT is
                        silent); where files disagree answer "Conflict - X (file A) vs Y (file B)".
 
@@ -237,12 +255,16 @@ facts - these are MUST-HAVES, each with its source as "(p.N)":
   visit, submission, opening, presentation, bid validity, contract start / end). None skipped.
 - Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
   experience, similar work with values, turnover, net worth, certifications, manpower,
-  blacklisting, JV rule, MSE / Startup relaxations. Do not shorten eligibility in compact.
+  blacklisting, JV rule, MSE / Startup relaxations, who may bid. Do not shorten eligibility
+  in compact.
+- Evaluation: method in one line; when marks decide who qualifies, the marks table and the
+  minimum-eligibility test of rule 22 (short: one row per criterion).
 - Money & contract terms (one table): EMD, fee, security, payment, penalties / LD, escalation,
   option clause - the figures that change the price.
 - Lots / clusters / sites table when the bidder chooses, prefers or prices lots (lot / cluster,
   areas or locations, number of sites, size or value) - bidders decide on these.
-- Scope: at most 6 rows or bullets. Then quick_decision last.
+- Scope: at most 6 rows or bullets, naming every area / service the tender lists (even
+  briefly). Then quick_decision last.
 Every key date and amount must also be in key_facts with its exact quote.
 Skip documents_required and standard clauses.""",
 }

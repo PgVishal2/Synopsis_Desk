@@ -4,6 +4,8 @@
 - Scanned pages (little or no text): OCR.Space when configured, then Tesseract.
 - Image pages that carry only a digital-signature stamp, and pages that are mostly one big
   image (scanned tables pasted into a text PDF), are OCR'd as well.
+- Scanned pages whose built-in scanner text is scrambled (common in tables) are read again
+  with OCR instead of trusting that text.
 - Sideways (rotated) pages are straightened before reading so tables keep their rows.
 - Digital-signature stamp text ("Signature Not Verified / Digitally signed by ...") is removed.
 - Images (screenshots, photos, scans: PNG, JPG, WEBP, BMP, TIFF incl. multi-page) are
@@ -336,7 +338,7 @@ CACHE_DIR = Path(tempfile.gettempdir()) / "tender_synopsis_cache"
 
 def read_pdf(path: Path, result: TenderText) -> None:
     """Reads a PDF; OCR results are cached by file hash so re-runs are instant."""
-    _cached(path, result, _read_pdf, b"ocr-space-tesseract-fallback-v4-stamps-rotation-images")
+    _cached(path, result, _read_pdf, b"ocr-space-tesseract-fallback-v6-stamps-rotation-images-rescan")
 
 
 def read_image(path: Path, result: TenderText) -> None:
@@ -367,6 +369,19 @@ def _cached(path: Path, result: TenderText, reader, tag: bytes) -> None:
 
 IMAGE_PAGE_SHARE = 0.35   # an image covering this much of a page may hide a scanned table
 IMAGE_PAGE_MAX_TEXT = 1500  # ...but only OCR it when the page has little real text of its own
+FULL_PAGE_SCAN = 0.85     # one image covering the whole page = a scan (its text is the scanner's)
+JUMBLED_SHARE = 0.10      # share of stray single letters that marks a scrambled text layer
+REDO_ALL_SHARE = 0.2      # this share of scrambled pages = re-read every scanned page of the file
+
+
+def text_layer_jumbled(text: str) -> bool:
+    """True when a scanner's built-in text is scrambled ('S art d a o I d own o a d'), which
+    happens in tables. Normal text has under 4% stray single letters; scrambled pages 10-30%."""
+    words = re.findall(r"[A-Za-z]+", text)
+    if len(words) < 40:
+        return False
+    stray = sum(1 for w in words if len(w) == 1 and w.lower() not in ("a", "i"))
+    return stray / len(words) >= JUMBLED_SHARE
 
 
 def _image_share(page) -> float:
@@ -384,7 +399,15 @@ def _image_share(page) -> float:
 
 def _read_pdf(path: Path, result: TenderText) -> None:
     doc = pymupdf.open(path)
+
+    def render(i: int) -> bytes:
+        """Page image for OCR, made only when needed (a 300-dpi page is ~4 MB; a long
+        scanned tender held in memory at once could exhaust a small server)."""
+        return doc[i - 1].get_pixmap(dpi=OCR_DPI).tobytes("png")
+
     texts, scanned, merge, failed = {}, {}, set(), set()
+    original = {}                              # scanner's own text, kept in case OCR fails
+    full_scan, jumbled = set(), set()          # whole-page scans / those with scrambled text
     rotated = 0
     for i, page in enumerate(doc, start=1):
         if page.rotation:                      # sideways pages: straighten so tables keep rows
@@ -395,38 +418,63 @@ def _read_pdf(path: Path, result: TenderText) -> None:
                 pass
         texts[i] = page.get_text("text", sort=True) or ""
         real = len(strip_signature_stamps(texts[i]).strip())
+        share = _image_share(page)
+        if real >= MIN_TEXT_CHARS and share >= FULL_PAGE_SCAN:
+            full_scan.add(i)
+            if text_layer_jumbled(texts[i]):
+                jumbled.add(i)
         if real < MIN_TEXT_CHARS:
-            scanned[i] = page.get_pixmap(dpi=OCR_DPI).tobytes("png")
-        elif real < IMAGE_PAGE_MAX_TEXT and _image_share(page) >= IMAGE_PAGE_SHARE:
-            scanned[i] = page.get_pixmap(dpi=OCR_DPI).tobytes("png")
+            scanned[i] = None
+        elif real < IMAGE_PAGE_MAX_TEXT and share >= IMAGE_PAGE_SHARE:
+            scanned[i] = None
             merge.add(i)                       # keep the page's own text and add the OCR text
+    # Scanned PDFs carry the scanner's own text. Where it is scrambled, read the page again.
+    # If many pages are scrambled, the scanner's text is poor throughout (dropped letters too),
+    # so every scanned page of this file is read again.
+    redo = full_scan if full_scan and len(jumbled) >= REDO_ALL_SHARE * len(full_scan) else jumbled
+    for i in redo:
+        original[i] = texts[i]
+        merge.discard(i)                       # replace the scanner's text, don't add to it
+        scanned[i] = None
     if scanned:  # OCR scanned pages in parallel
         lang = _available_ocr_lang()
         # Keep cloud requests bounded to avoid bursts against OCR.Space free-tier limits.
         # Cloud hosts often report many CPUs but give few; each 300-dpi page image is ~25 MB.
         default = 2 if _cloud_allowed() else min(os.cpu_count() or 2, 3)
         workers = max(1, int(os.getenv("OCR_WORKERS", default)))
+        order = sorted(scanned)
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {i: pool.submit(_ocr_png, png, lang) for i, png in scanned.items()}
-            for i, fut in futures.items():
-                try:
-                    ocr_text, fallback = fut.result()
-                    texts[i] = (texts[i].rstrip() + "\n\n[Text read from image on this page]\n"
-                                + ocr_text) if i in merge else ocr_text
-                    if fallback:
-                        result.warnings.append(f"{path.name} p{i}: {fallback}")
-                except Exception as e:  # keep going; flag it
-                    if i not in merge:
-                        texts[i] = ""          # whole page unreadable: AI may still read it below
-                        failed.add(i)
-                    else:
-                        scanned.pop(i)
-                        result.warnings.append(f"{path.name} p{i}: image on page not read ({e})")
+            for start in range(0, len(order), workers * 2):    # a few page images at a time
+                batch = order[start:start + workers * 2]
+                futures = {i: pool.submit(_ocr_png, render(i), lang) for i in batch}
+                for i, fut in futures.items():
+                    try:
+                        ocr_text, fallback = fut.result()
+                        texts[i] = (texts[i].rstrip() + "\n\n[Text read from image on this page]\n"
+                                    + ocr_text) if i in merge else ocr_text
+                        if fallback:
+                            result.warnings.append(f"{path.name} p{i}: {fallback}")
+                    except Exception as e:  # keep going; flag it
+                        if i in original:      # keep the scanner's own text rather than nothing
+                            texts[i] = original[i]
+                            scanned.pop(i)
+                            result.warnings.append(
+                                f"{path.name} p{i}: page text looks scrambled and could not be "
+                                f"read again ({e}) - check this page.")
+                        elif i not in merge:
+                            texts[i] = ""      # whole page unreadable: AI may still read it below
+                            failed.add(i)
+                        else:
+                            scanned.pop(i)
+                            result.warnings.append(f"{path.name} p{i}: image on page not read ({e})")
         # pages OCR could not read reliably (handwriting, phone photo, poor scan): AI reads a few
         for i in sorted(scanned):
             if i in merge:
                 continue
-            img = _pil(scanned[i])
+            text = strip_signature_stamps(texts[i])
+            if i not in failed and len(text.strip()) >= 40 and not ocr_looks_unreliable(text):
+                continue                       # clear text: no need to look at the image again
+            img = _pil(render(i))
             if not ((i in failed and _ink(img) > 0.03)
                     or ocr_looks_unreliable(strip_signature_stamps(texts[i]), img)):
                 if i in failed:
