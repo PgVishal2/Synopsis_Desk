@@ -72,6 +72,23 @@ def _fy_token(m) -> str:
     return f" fy{start}{start + 1} "
 
 
+# "3:00 PM", "3.00 p.m.", "15:00 Hrs", "12.00 Noon", "15:00" - a "." only counts with a suffix
+TIME = re.compile(r"\b(\d{1,2})(?::(\d{2})|\.(\d{2})(?=\s*(?:[ap]\.?m\b|noon|hrs?\b|hours)))"
+                  r"\s*([ap])?\.?\s*m?\.?(?![a-z])\s*(noon)?")
+
+
+def _time_token(m) -> str:
+    """3:00 PM and 15:00 are the same time -> 'time1500'."""
+    h, mins = int(m[1]), int(m[2] or m[3])
+    if m[4] == "p" and h < 12:
+        h += 12
+    elif m[4] == "a" and h == 12:
+        h = 0
+    if h > 23 or mins > 59:
+        return m[0]
+    return f" time{h:02d}{mins:02d} "
+
+
 def _ocr_digits(s: str) -> str:
     """In scanned text, 'O' / 'Z' inside a number are usually 0 / 2 ('2OZ6' -> '2026')."""
     return re.sub(r"[0-9oz]{4,}", lambda m: m[0].translate(str.maketrans("oz", "02"))
@@ -87,7 +104,7 @@ def _numbers(s: str, ocr: bool = False) -> set[str]:
     if ocr:
         s = _ocr_digits(s)
     # common OCR slips next to Indian units: "I crore" / "l crore" -> "1 crore", "laes" -> "lacs"
-    s = re.sub(r"\b[il|]\s+" + _UNIT, r"1 \1", s)
+    s = re.sub(r"(?<![a-z0-9])[il|]\s+" + _UNIT, r"1 \1", s)
     s = re.sub(r"\b(la[ce]s|laes|lacks|lkh)\b", "lacs", s)
     # "Rs. 1.00 (one) Lakh" / "One (1) Lakh" / "one lakh" -> number right next to its unit
     s = re.sub(r"(\d)\)?\s*\([a-z ]+\)\s*" + _UNIT, r"\1 \2", s)
@@ -97,6 +114,9 @@ def _numbers(s: str, ocr: bool = False) -> set[str]:
     s = _dates_to_tokens(s)
     out = set(re.findall(r"date\d{8}", s))
     s = re.sub(r"date\d{8}", " ", s)
+    s = TIME.sub(_time_token, s)
+    out |= set(re.findall(r"time\d{4}", s))
+    s = re.sub(r"time\d{4}", " ", s)
     s = FY.sub(_fy_token, s)
     out |= set(re.findall(r"fy\d{8}", s))
     s = re.sub(r"fy\d{8}", " ", s)
@@ -273,6 +293,8 @@ def check_requirements(syn: Synopsis, tender: TenderText) -> list[Issue]:
 def _pretty(n: str) -> str:
     if n.startswith("fy"):
         return f"FY {n[2:6]}-{n[8:10]}"
+    if n.startswith("time"):
+        return f"{n[4:6]}:{n[6:8]}"
     return f"{n[10:12]}.{n[8:10]}.{n[4:8]}" if n.startswith("date") else n
 
 
@@ -496,6 +518,102 @@ def mark_closed_bid(syn: Synopsis) -> bool:
     return True
 
 
+# ---- Figures inside tables and bullets ---------------------------------------------------------
+# Key facts and requirements carry quotes; table cells and bullets do not. This check makes
+# sure every money amount, percentage and period written there exists somewhere in the
+# documents, so an invented or mistyped figure (e.g. "valid 90 days" when the tender says 60,
+# a lakh / crore slip in a table) is flagged even without a quote.
+_NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+              "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15,
+              "eighteen": 18, "twenty": 20, "twenty four": 24, "thirty": 30, "forty five": 45,
+              "sixty": 60, "ninety": 90, "one hundred twenty": 120, "one hundred eighty": 180}
+_N = r"(\d+(?:\.\d+)?|" + "|".join(sorted(_NUM_WORDS, key=len, reverse=True)) + r")"
+DURATION = re.compile(_N + r"\s*(?:\(\s*[a-z0-9 ]+\s*\)\s*)?(?:calendar\s+|working\s+)?"
+                      r"(day|week|month|year)s?\b")
+PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*(?:\(\s*[a-z ]+\s*\)\s*)?(?:%|per\s*cent|percent)")
+
+
+def _num(word: str) -> str:
+    v = _NUM_WORDS.get(word)
+    return str(v) if v is not None else word.rstrip("0").rstrip(".") if "." in word else word
+
+
+AMOUNT = re.compile(r"(?:₹|\brs\.?|\binr)\s*[\d,]+(?:\.\d+)?(?:\s*/-)?(?:\s*\([a-z ]+\))?"
+                    r"(?:\s*(?:crores?|cr|lakhs?|lacs?)\b)?"
+                    r"|[\d,]+(?:\.\d+)?\s*(?:\([a-z ]+\)\s*)?(?:crores?|lakhs?|lacs?)\b"
+                    r"|(?:₹|\brs|\binr)[\s.,]*[|il]\s+(?:crores?|lakhs?|lacs?)\b")   # scan: "Rs. | crore"
+
+
+def _figures(s: str, ocr: bool = False) -> set[str]:
+    """Money amounts (in rupees), percentages and periods in a piece of text, normalised.
+    Only numbers written as money (₹ / Rs / INR / lakh / crore) count as amounts, so reference
+    numbers, bid numbers and counts are never mistaken for amounts."""
+    low = re.sub(r"\s+", " ", s.lower().replace("-", " ").replace("–", " "))
+    if ocr:
+        low = _ocr_digits(low)
+    out = {f"{_num(m[1])} {m[2]}" for m in DURATION.finditer(low)}
+    out |= {f"{_num(m[1])}%" for m in PERCENT.finditer(low)}
+    for m in AMOUNT.finditer(s.lower()):
+        out |= {n for n in _numbers(m[0], ocr=ocr) if n.isdigit() and int(n) >= 100}
+    return out
+
+
+def _cells(syn: Synopsis):
+    """(where, text) for every table cell and bullet a reader sees, except source columns."""
+    for row in syn.key_facts_table:
+        if len(row) >= 2:
+            yield f"Key facts - {row[0]}", " ".join(row[1:])
+    for sec in syn.sections:
+        for b in sec.blocks:
+            src = {i for i, h in enumerate(b.headers or []) if re.search(r"source|page|ref", h, re.I)}
+            for row in b.rows or []:
+                text = " ".join(c for i, c in enumerate(row) if i not in src and i > 0)
+                if row:
+                    yield f"{sec.heading} - {row[0]}", text
+            for it in b.items or []:
+                yield sec.heading, " ".join([it.text] + list(it.sub_items or []))
+
+
+def _loosely_present(fig: str, low: str) -> bool:
+    """Forms and portal data sheets put the unit in a label and the number after it
+    ('ePBG Percentage(%) 5.00', 'Duration of ePBG required (Months). 14', '45 (Days)')."""
+    num, _, unit = fig.partition(" ")
+    if fig.endswith("%"):
+        num, unit = fig[:-1], "%"
+    n = re.escape(num) + r"(?:\.0+)?\b"
+    u = {"%": r"(?:%|per\s*cent|percent(?:age)?)", "day": r"days?", "week": r"weeks?",
+         "month": r"months?", "year": r"years?"}.get(unit)
+    if not u:
+        return False
+    return bool(re.search(u + r"\)?\.?\s*:?[^.;]{0,80}?(?<![\d.])" + n, low)
+                or re.search(r"(?<![\d.])" + n + r"[^.;]{0,25}?" + u, low))
+
+
+def check_table_figures(syn: Synopsis, tender: TenderText) -> list[Issue]:
+    in_tender = _figures(tender.full_text, ocr=True)
+    low = re.sub(r"\s+", " ", _ocr_digits(tender.full_text.lower()))
+    places: dict[str, list[str]] = {}
+    for where, text in _cells(syn):
+        if "computed" in text.lower():
+            continue                                     # a labelled calculation
+        for f in _figures(text):
+            if f not in in_tender and not (f in places or _loosely_present(f, low)):
+                places.setdefault(f, [])
+            if f in places:
+                places[f].append(re.sub(r"[=+*]", "", where)[:70])
+    issues = []
+    for f, where in places.items():
+        uniq = list(dict.fromkeys(where))
+        shown = (_inr(f) if f.isdigit() else
+                 f + ("s" if f[-1].isalpha() and not f.startswith("1 ") else ""))
+        more = f" (+{len(uniq) - 2} more)" if len(uniq) > 2 else ""
+        issues.append(Issue("warning", "table figure",
+                            f"'{shown}' is not in the documents - check it. Used in: "
+                            f"{'; '.join(uniq[:2])}{more}. If it is a calculation, it "
+                            "should say 'computed'."))
+    return issues
+
+
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     repaired = fix_markup(syn)
     tidy_text(syn)
@@ -513,7 +631,7 @@ def _run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     quotes = (check_quotes(syn, tender) if tender.pages else
               [Issue("info", "sources", "Tender not supplied - source quotes not checked.")])
     if tender.pages:
-        quotes += check_requirements(syn, tender)
+        quotes += check_requirements(syn, tender) + check_table_figures(syn, tender)
     issues = quotes + check_empty(syn) + check_dates(syn) + check_markup(syn) + check_coverage(syn)
     issues += [Issue("warning", "ingest", w) for w in tender.warnings]
     issues += [Issue("warning", "model_note", n) for n in syn.review_notes]

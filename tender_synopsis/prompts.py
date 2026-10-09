@@ -276,11 +276,27 @@ def house_rules() -> str:
                               doc_types=", ".join(DOC_TYPES), sectors=", ".join(SECTORS))
 
 
+FINAL_CHECK = """\
+FINAL SELF-CHECK - before you answer, re-read every table row and bullet against its source:
+1. One clause per cell: each penalty, forfeiture, blacklisting, validity or security term
+   carries only what ITS clause says (its own trigger, period and %). Words or periods from a
+   nearby clause on another subject must not be mixed in (rule 15).
+2. Nothing added: no condition, reason, period or figure the tender does not state (e.g. do
+   not add "by mutual agreement" or "based on performance" to an extension clause). A figure
+   you calculated ends with "(computed)".
+3. Names as written: selection method, document names and form numbers exactly as the
+   tender calls them (e.g. LCS is not QCBS).
+4. Nothing dropped: who may bid, every scope area listed, and "Not stated" for absent items
+   a bidder needs (payment terms, estimated value, attachments listed but missing).
+Fix anything that fails, then return the JSON."""
+
+
 def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:
     parts = [house_rules(), SECTION_LIBRARY, DETAIL_LEVELS.get(detail, DETAIL_LEVELS["detailed"])]
     if style_examples:
         parts.append("PAST SYNOPSES WRITTEN BY THE TEAM (match this voice, layout and "
                      "highlighting; do NOT copy their facts):\n\n" + style_examples)
+    parts.append(FINAL_CHECK)                  # last, where models follow a checklist best
     return "\n\n".join(parts)
 
 

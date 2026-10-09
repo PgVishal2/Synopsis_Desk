@@ -75,6 +75,7 @@ has passed, the app itself adds *"Bid still open? – No"*.
 |---|---|
 | Source quotes | Every key date, amount and requirement carries a file, page and exact quote; the app confirms the quote exists in the documents |
 | Number match | Numbers in each value must appear in its quote (₹4 crore = 4,00,00,000; any date format) |
+| Table figures | Every amount, percentage and period written in the tables and bullets must exist somewhere in the documents (portal data-sheet formats like "Percentage(%) 5.00" included); otherwise ⚠️ "check it". Calculations must say "computed" |
 | **Lakh / crore slip** | An amount 10×, 100× or 1000× off its source becomes a red ❌ (e.g. 290000000 written as ₹2.9 crore) |
 | Second AI check | A short second call re-checks critical figures against their page (and the next page); "could not confirm" is a ⚠️, a different number is a ❌ |
 | Conflicts between files | Different values in different files are shown side by side ("36 months (NIT) vs 1 year (GeM)"), never silently merged |

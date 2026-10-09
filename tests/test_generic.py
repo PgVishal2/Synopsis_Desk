@@ -748,3 +748,37 @@ def test_prompt_asks_for_qualifying_score_test():
     from tender_synopsis.prompts import build_system_prompt
     p = build_system_prompt("", "compact")
     assert "minimum eligibility" in p and "Qualifying score" in p and "who may bid" in p
+
+
+def test_same_time_in_12_and_24_hour_format():
+    from tender_synopsis.verify import _numbers
+    assert _numbers("14.10.2026 15:00") == _numbers("14.10.2026 3:00 PM")
+    assert _numbers("12.00 Noon") == _numbers("12:00 noon") == {"time1200"}
+    assert _numbers("15:00 Hrs") == _numbers("3.00 p.m.")
+    assert "100000" in _numbers("Rs. 1.00 Lakh")            # amounts are not read as times
+
+
+def test_table_figures_not_in_documents_are_flagged():
+    from tender_synopsis.verify import check_table_figures
+    t = TenderText(pages=[Page("nit.pdf", 1,
+        "Bid validity 60 (sixty) days. Performance Security 5% of contract value valid for "
+        "6 (six) months. Penalty upto 10%. Tender fee Rs. 5,000 + GST. EMD Rs. 1.00 (one) Lakh. "
+        "ePBG Percentage(%) 3.00  Duration of ePBG required (Months). 14  Bid Offer Validity 45 (Days). "
+        "Blacklisting for three years. GEM/2026/B/7675944")])
+    s = Synopsis.model_validate({"profile": {}, "key_facts_table": [
+        ["Ref", "GEM/2026/B/7675944"], ["EMD", "₹1,00,000"], ["Fee", "₹5,000 + GST (₹5,900 computed)"],
+        ["ePBG", "3% for 14 months; offer valid 45 days"]],
+        "sections": [{"key": "x", "heading": "1. Terms", "blocks": [{"type": "table", "text": "",
+            "headers": ["Item", "Rule", "Source"], "items": [], "rows": [
+                ["Validity", "90 days", "p.1"], ["Security", "5% valid 6 months", "p.1"],
+                ["Penalty", "upto 10%; blacklisting 3 years", "p.1"], ["Fee", "₹5,900", "p.1"]]}]}]})
+    msgs = [i.message for i in check_table_figures(s, t)]
+    assert len(msgs) == 2
+    assert any("'90 days'" in m and "Validity" in m for m in msgs)
+    assert any("'₹5,900'" in m for m in msgs)                 # not labelled computed there
+
+
+def test_final_self_check_comes_last():
+    from tender_synopsis.prompts import build_system_prompt
+    p = build_system_prompt("PAST SYNOPSIS EXAMPLE", "compact")
+    assert p.rstrip().endswith("then return the JSON.") and "One clause per cell" in p
