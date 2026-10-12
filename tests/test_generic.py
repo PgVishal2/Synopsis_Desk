@@ -789,8 +789,10 @@ def test_final_self_check_comes_last():
 def test_compact_prompt_is_strict_and_detailed_is_unchanged():
     from tender_synopsis.prompts import build_system_prompt
     c, d = build_system_prompt("", "compact"), build_system_prompt("", "detailed")
-    assert "AT MOST 3-4 PAGES" in c and "LEAVE OUT in compact" in c and "5. COMPACT length" in c
-    assert "COMPACT length" not in d and "5-6 pages" in d
+    assert "3-4 PAGES" in c and "5. COMPACT balance" in c
+    assert "Rejected if" in c and "never WHICH decision points" in c            # cut wording, not topics
+    assert "BALANCE" in c and "5 at most and only for crucial details" in c
+    assert "COMPACT balance" not in d and "5-6 pages" in d
     assert "SMALLEST single step" in c and "FULL marks" in c          # rule 22 clarified
 
 
@@ -798,7 +800,23 @@ def test_long_compact_synopsis_is_flagged():
     from tender_synopsis.verify import check_compact_length, synopsis_words
     row = ["Item", "word " * 20]
     short = Synopsis.model_validate({"profile": {}, "key_facts_table": [row] * 20, "summary": "x"})
-    long = Synopsis.model_validate({"profile": {}, "key_facts_table": [row] * 90, "summary": "x"})
+    long = Synopsis.model_validate({"profile": {}, "key_facts_table": [row] * 110, "summary": "x"})
     assert check_compact_length(short) == [] and synopsis_words(short) < 1500
     w = check_compact_length(long)
-    assert len(w) == 1 and w[0].severity == "warning" and "3-4 page target" in w[0].message
+    assert len(w) == 1 and w[0].severity == "warning" and "nothing was removed" in w[0].message
+
+
+def test_page_refs_month_first_dates_and_conflicts_are_not_false_alarms():
+    from tender_synopsis.verify import check_quotes
+    t = TenderText(pages=[Page("rfp.pdf", 5, "valid for 60 (Sixty) days after the submission date. " * 3),
+                          Page("rfp.pdf", 10, "valid for a period of 120 days from the deadline. " * 3),
+                          Page("rfp.pdf", 11, "incorporated in India before Jul 31,2023 and in business. " * 3)])
+    s = Synopsis.model_validate({"profile": {}, "key_facts": [
+        {"field": "age", "value": "Incorporated before 31.07.2023 (p.11)", "file": "rfp.pdf", "page": 11,
+         "quote": "incorporated in India before Jul 31,2023"},
+        {"field": "validity", "value": "120 days (p.10) - conflict with 60 days (p.5)", "file": "rfp.pdf",
+         "page": 10, "quote": "valid for a period of 120 days from the deadline"},
+        {"field": "bad", "value": "90 days (p.10)", "file": "rfp.pdf", "page": 10,
+         "quote": "valid for a period of 120 days from the deadline"}]})
+    flagged = {i.field for i in check_quotes(s, t)}
+    assert flagged == {"bad"}                       # only the real mismatch is reported

@@ -49,13 +49,29 @@ UNITS = {"crore": 10**7, "crores": 10**7, "cr": 10**7, "lakh": 10**5, "lakhs": 1
 MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june",
           "july", "august", "september", "october", "november", "december"], 1)}
 NUM_DATE = re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b")
-TXT_DATE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(" + "|".join(MONTHS) + r")[a-z]*,?\s+(\d{4})\b")
+MON3 = {m[:3]: i for m, i in MONTHS.items()}
+_MON = r"(" + "|".join(MON3) + r")[a-z]*\.?"
+TXT_DATE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+" + _MON + r",?\s+(\d{4})\b")
+TXT_DATE_MF = re.compile(r"\b" + _MON + r"\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(\d{4})\b")
 
 
 def _dates_to_tokens(s: str) -> str:
-    """'28.02.2027' and '28th February 2027' both become 'date20270228'."""
+    """'28.02.2027', '28th February 2027', '28 Feb 2027' and 'Feb 28, 2027' all become
+    'date20270228'."""
     s = NUM_DATE.sub(lambda m: f" date{int(m[3]):04d}{int(m[2]):02d}{int(m[1]):02d} ", s)
-    return TXT_DATE.sub(lambda m: f" date{int(m[3]):04d}{MONTHS[m[2]]:02d}{int(m[1]):02d} ", s)
+    s = TXT_DATE.sub(lambda m: f" date{int(m[3]):04d}{MON3[m[2]]:02d}{int(m[1]):02d} ", s)
+    return TXT_DATE_MF.sub(lambda m: f" date{int(m[3]):04d}{MON3[m[1]]:02d}{int(m[2]):02d} ", s)
+
+
+# Page and clause references inside a value ("(p.15)", "ITC Cl.13", "S.No.7") are pointers,
+# not figures from the tender - they must not be compared with the quote.
+_REFS = re.compile(r"\(?\b(?:pp?|pages?|pg)\.?\s*\d+(?:\s*(?:[-–,&]|and)\s*\d+)*\)?"
+                   r"|\b(?:cl(?:ause)?|item|s\.?\s*no|sl\.?\s*no|para|section|annex(?:ure)?|"
+                   r"appendix|form|tech|fin)\.?\s*[-–]?\s*\d+[\w.()]*", re.I)
+
+
+def _strip_refs(s: str) -> str:
+    return _REFS.sub(" ", s)
 
 
 _WORD_NUM = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
@@ -243,7 +259,11 @@ def check_quotes(syn: Synopsis, tender: TenderText) -> list[Issue]:
                                                f"'{kf.value}' (match {max(score, whole)}%)."))
                 continue
         quote_nums = _numbers(kf.quote, ocr=True)
-        missing = {n for n in _numbers(kf.value) - quote_nums if len(n) > 1}
+        missing = {n for n in _numbers(_strip_refs(kf.value)) - quote_nums if len(n) > 1}
+        if missing and re.search(r"conflict|\bvs\.?\b", kf.value, re.I):
+            # a conflict value names the other clause's figure too: it only has to exist
+            # somewhere in the documents, not in this one quote
+            missing -= _numbers(tender.full_text, ocr=True)
         slip = _scale_slip(missing, quote_nums)
         if slip:
             issues.append(Issue("error", kf.field,
@@ -615,7 +635,7 @@ def check_table_figures(syn: Synopsis, tender: TenderText) -> list[Issue]:
 
 
 # ---- Compact length -----------------------------------------------------------------------
-COMPACT_MAX_WORDS = 1500        # about 4 Word pages of tables (measured: ~340 words per page)
+COMPACT_MAX_WORDS = 1700        # about 5 Word pages of tables (measured: ~340 words per page)
 WORDS_PER_PAGE = 340
 
 
@@ -637,10 +657,11 @@ def check_compact_length(syn: Synopsis) -> list[Issue]:
     if words <= COMPACT_MAX_WORDS:
         return []
     pages = max(5, round(words / WORDS_PER_PAGE))
+    # a check, not a cut: nothing is removed automatically, because a missing detail costs more
     return [Issue("warning", "length", f"This compact synopsis is about {pages} pages "
-                  f"({words:,} words) - longer than the 3-4 page target. The content comes from "
-                  "the tender, but extras can be trimmed on the results page or the synopsis "
-                  "made again.")]
+                  f"({words:,} words) - longer than compact should be (3-4, at most 5). Look for "
+                  "repeated rows or long wording to trim on the results page; nothing was "
+                  "removed automatically.")]
 
 
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:

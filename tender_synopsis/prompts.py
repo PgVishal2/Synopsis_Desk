@@ -248,36 +248,50 @@ DETAIL_LEVELS = {
                 "penalties, securities and other terms, then documents_required and "
                 "quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
-    "compact": """Write the COMPACT version: AT MOST 3-4 PAGES (about 900-1,300 words in all).
+    "compact": """Write the COMPACT version: 3-4 PAGES (about 1,000-1,400 words in all).
+BALANCE: a CRUCIAL detail is one that can disqualify a bidder, cost money, change the price,
+set a hard deadline, or is an eligibility condition or a conflict between documents. Every
+crucial detail stays, in one short row. Everything else is compressed or left out. Only if the
+crucial details alone need it may the synopsis reach 5 pages; going beyond that means the
+wording is too long or rows repeat - tighten them, do not drop crucial details.
+Compact cuts HOW MUCH is said about each point, never WHICH decision points appear. Anything
+that can disqualify a bidder, cost money, change the price or set a hard deadline must appear
+- in one short row. Only procedural detail that changes none of these is left out.
 This overrides the core section list above. Use ONLY these parts, in this order:
 - Key facts table (unnumbered): authority, work / item, reference no., estimated value, EMD,
   tender / document fee, performance security, turnover (and net worth if any), contract
   period, submission deadline, pre-bid, evaluation method, price basis (what the bidder
   quotes: rate / lump sum / % / licence fee, L1 / H1 / QCBS / LCS, GST included or extra).
-- 1. Important Dates table: EVERY date and time stated (publication, queries, pre-bid, site
-  visit, submission, hard-copy / original EMD deadline, opening, presentation, bid
-  validity, contract start / end). None skipped.
+- 1. Important Dates table - dates only: EVERY date and time stated (publication, queries,
+  pre-bid, site visit, submission, hard-copy / original EMD deadline, opening, presentation,
+  bid validity, contract start / end). None skipped; copy each time exactly from its clause.
 - 2. Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
   experience, similar work with values, turnover, net worth, certifications, manpower,
   blacklisting, JV rule, MSE / Startup relaxations, who may bid. Never shortened.
-- 3. Evaluation - ONLY when marks decide who qualifies: the marks table, one row per
-  criterion, and the rule 22 test in one line. Otherwise the method stays in key facts only.
+- 3. Evaluation - ONLY when marks decide who qualifies: the marks table (Criterion | Slabs ->
+  marks | Max | Evidence asked for, when the tender names it), and the rule 22 test in one
+  line. Otherwise the method stays in key facts only.
 - 4. Money & terms table: EMD, fee, security, payment terms ("Not stated" if absent),
-  penalties / LD, escalation, option clause - one row each, only figures that change the price.
+  penalties / LD, escalation, option clause, award rule - one row each.
 - 5. Lots / clusters / sites table - ONLY when the bidder chooses, prefers or prices lots.
 - 6. Scope: ONE table, at most 6 rows (Area | What is required), naming every area the
-  tender lists. No service lists, no deliverable details beyond the key numbers.
-- 7. Quick Decision: at most 12 rows; include the top rejection risks here.
+  tender lists, with only the key numbers.
+- 7. Rejected if: ONE table of the stated grounds for summary rejection or disqualification
+  (missing fee / EMD / originals, late hard copy, financial details in the technical bid,
+  more than one bid, conditional bid, unsigned or illegible pages, conflict of interest...)
+  - at most 8 rows of about 12 words, only grounds the tender states.
+- 8. Quick Decision: at most 12 rows, each answer about 15 words; do not re-list the tables.
 Keep it tight:
 - No paragraphs or bullets outside tables, except at most 2 notes of one line each for a
   critical conflict or trap. Conflicts go inside the table cell ("60 days (p.5) / 120 days
   (p.10) - conflict") and in review_notes.
-- Each table cell at most about 25 words. Say each fact once - the Money table does not
-  repeat what the key facts table already gives in full.
-- LEAVE OUT in compact: EMD forfeiture / refund rules, separate rejection-grounds lists,
-  termination, sub-contracting, venue, contact e-mail, video-conference notes, office-closure
-  rules, documents_required, standard clauses, detailed service or deliverable lists.
-- Summary: 2-3 sentences.
+- Each table cell at most about 25 words. Say each fact once - later tables do not repeat
+  what the key facts table already gives in full.
+- Leave out in compact ONLY procedural detail: refund timelines, venue, contact e-mail,
+  video-conference and office-closure notes, service / deliverable lists, documents_required,
+  standard clauses (arbitration, force majeure, jurisdiction). If a usually-procedural clause
+  is unusual or can cost the bidder money or the bid, it is NOT procedural - keep it.
+- Summary: 2-3 short sentences.
 Every key date and amount must also be in key_facts with its exact quote.""",
 }
 
@@ -303,9 +317,10 @@ FINAL SELF-CHECK - before you answer, re-read every table row and bullet against
 Fix anything that fails, then return the JSON."""
 
 COMPACT_CHECK = """
-5. COMPACT length: only the parts listed for compact, at most 3-4 pages. Delete every
-   paragraph, note or row that is not a must-have (forfeiture, refunds, termination, venue,
-   service lists...) - those belong to the detailed version. Must-haves are never cut."""
+5. COMPACT balance: 3-4 pages, 5 at most and only for crucial details. To get there, first
+   shorten wording and merge repeated rows, then delete procedural detail (refund timelines,
+   venue, contacts, service lists). Never delete a crucial detail (disqualifier, deadline,
+   eligibility condition, conflict, figure that changes the price)."""
 
 
 def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:
