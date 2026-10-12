@@ -792,6 +792,7 @@ def test_compact_prompt_is_strict_and_detailed_is_unchanged():
     assert "3-4 PAGES" in c and "5. COMPACT balance" in c
     assert "Rejected if" in c and "never WHICH decision points" in c            # cut wording, not topics
     assert "BALANCE" in c and "5 at most and only for crucial details" in c
+    assert "NOT crucial" in c and "never a second scope table" in c
     assert "COMPACT balance" not in d and "5-6 pages" in d
     assert "SMALLEST single step" in c and "FULL marks" in c          # rule 22 clarified
 

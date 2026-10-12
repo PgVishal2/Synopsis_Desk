@@ -251,7 +251,12 @@ DETAIL_LEVELS = {
     "compact": """Write the COMPACT version: 3-4 PAGES (about 1,000-1,400 words in all).
 BALANCE: a CRUCIAL detail is one that can disqualify a bidder, cost money, change the price,
 set a hard deadline, or is an eligibility condition or a conflict between documents. Every
-crucial detail stays, in one short row. Everything else is compressed or left out. Only if the
+crucial detail stays, in one short row. Everything else is compressed or left out.
+NOT crucial (leave out unless this tender's version is unusual - e.g. an extra forfeiture
+ground, a higher %, a very short time limit): the standard EMD / security forfeiture events,
+refund timelines, generic termination, and "Not stated" rows for minor topics such as
+sub-contracting. "Not stated" is written only for what a bidder needs: payment terms,
+estimated value, contract start, a missing attachment. Only if the
 crucial details alone need it may the synopsis reach 5 pages; going beyond that means the
 wording is too long or rows repeat - tighten them, do not drop crucial details.
 Compact cuts HOW MUCH is said about each point, never WHICH decision points appear. Anything
@@ -265,6 +270,7 @@ This overrides the core section list above. Use ONLY these parts, in this order:
 - 1. Important Dates table - dates only: EVERY date and time stated (publication, queries,
   pre-bid, site visit, submission, hard-copy / original EMD deadline, opening, presentation,
   bid validity, contract start / end). None skipped; copy each time exactly from its clause.
+  No venues, durations or notes in this table.
 - 2. Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
   experience, similar work with values, turnover, net worth, certifications, manpower,
   blacklisting, JV rule, MSE / Startup relaxations, who may bid. Never shortened.
@@ -272,10 +278,13 @@ This overrides the core section list above. Use ONLY these parts, in this order:
   marks | Max | Evidence asked for, when the tender names it), and the rule 22 test in one
   line. Otherwise the method stays in key facts only.
 - 4. Money & terms table: EMD, fee, security, payment terms ("Not stated" if absent),
-  penalties / LD, escalation, option clause, award rule - one row each.
+  penalties / LD, escalation, option clause, award rule - one row each. Add only what the
+  key facts table does not already say (e.g. the payment instrument and validity once),
+  never the same amount and terms twice.
 - 5. Lots / clusters / sites table - ONLY when the bidder chooses, prefers or prices lots.
-- 6. Scope: ONE table, at most 6 rows (Area | What is required), naming every area the
-  tender lists, with only the key numbers.
+- 6. Scope: ONE table only, at most 6 rows (Area | What is required), naming every area the
+  tender lists, with only the key numbers. If the bidder quotes per scope / lot, say so in
+  one row of this table - never a second scope table.
 - 7. Rejected if: ONE table of the stated grounds for summary rejection or disqualification
   (missing fee / EMD / originals, late hard copy, financial details in the technical bid,
   more than one bid, conditional bid, unsigned or illegible pages, conflict of interest...)
@@ -291,7 +300,7 @@ Keep it tight:
   video-conference and office-closure notes, service / deliverable lists, documents_required,
   standard clauses (arbitration, force majeure, jurisdiction). If a usually-procedural clause
   is unusual or can cost the bidder money or the bid, it is NOT procedural - keep it.
-- Summary: 2-3 short sentences.
+- Summary: 2-3 short sentences (about 60 words).
 Every key date and amount must also be in key_facts with its exact quote.""",
 }
 
@@ -318,9 +327,10 @@ Fix anything that fails, then return the JSON."""
 
 COMPACT_CHECK = """
 5. COMPACT balance: 3-4 pages, 5 at most and only for crucial details. To get there, first
-   shorten wording and merge repeated rows, then delete procedural detail (refund timelines,
-   venue, contacts, service lists). Never delete a crucial detail (disqualifier, deadline,
-   eligibility condition, conflict, figure that changes the price)."""
+   shorten wording and merge repeated rows (one scope table; nothing repeated from key
+   facts), then delete procedural detail (standard forfeiture and refund rules, venue,
+   contacts, service lists, minor "Not stated" rows). Never delete a crucial detail
+   (disqualifier, deadline, eligibility condition, conflict, figure that changes the price)."""
 
 
 def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:
