@@ -614,6 +614,35 @@ def check_table_figures(syn: Synopsis, tender: TenderText) -> list[Issue]:
     return issues
 
 
+# ---- Compact length -----------------------------------------------------------------------
+COMPACT_MAX_WORDS = 1500        # about 4 Word pages of tables (measured: ~340 words per page)
+WORDS_PER_PAGE = 340
+
+
+def synopsis_words(syn: Synopsis) -> int:
+    """Words a reader sees in the Word file (top table, sections, summary)."""
+    parts = [" ".join(r) for r in syn.key_facts_table]
+    for sec in syn.sections:
+        parts.append(sec.heading)
+        for b in sec.blocks:
+            parts += [b.text or "", " ".join(b.headers or [])]
+            parts += [" ".join(r) for r in b.rows or []]
+            parts += [" ".join([it.text] + list(it.sub_items or [])) for it in b.items or []]
+    parts.append(syn.summary or "")
+    return len(re.findall(r"\S+", re.sub(r"[=+*]", "", " ".join(parts))))
+
+
+def check_compact_length(syn: Synopsis) -> list[Issue]:
+    words = synopsis_words(syn)
+    if words <= COMPACT_MAX_WORDS:
+        return []
+    pages = max(5, round(words / WORDS_PER_PAGE))
+    return [Issue("warning", "length", f"This compact synopsis is about {pages} pages "
+                  f"({words:,} words) - longer than the 3-4 page target. The content comes from "
+                  "the tender, but extras can be trimmed on the results page or the synopsis "
+                  "made again.")]
+
+
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     repaired = fix_markup(syn)
     tidy_text(syn)

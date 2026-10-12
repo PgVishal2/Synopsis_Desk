@@ -16,7 +16,7 @@ from .prompts import VERIFY_PROMPT, build_system_prompt, build_user_prompt
 from .render import render_docx
 from .schema import Synopsis
 from .style_examples import load_examples
-from .verify import Issue, _numbers, run_checks
+from .verify import Issue, _numbers, check_compact_length, run_checks
 
 CRITICAL = ("deadline", "emd", "turnover", "net_worth", "pbg", "security", "fee", "value")
 
@@ -202,7 +202,8 @@ def _generate(files, out_dir, detail, double_check, exclude_example, name, profi
                   [f.name for f in files], usage, double_check,
                   [Issue("info", "length", w) for w in packed.warnings]
                   + [Issue("warning", "ai_provider", f"Fallback used – {f}")
-                     for f in usage.get("fallbacks", [])], profiles)
+                     for f in usage.get("fallbacks", [])]
+                  + (check_compact_length(syn) if detail == "compact" else []), profiles)
 
 
 def rerender(json_path: str | Path, tender_files: list[str | Path] | None = None,

@@ -92,10 +92,13 @@ D. When two files list the same sites / items / quantities / areas, compare them
 22. Qualifying score: when marks decide who goes forward (a minimum technical score, a
    cut-off before presentation, a minimum per criterion), show the marks table (Criterion |
    Slabs -> marks | Max) and test it: score a bidder who meets ONLY the minimum eligibility
-   (lowest slab on every criterion tied to an eligibility minimum, full marks on the rest).
+   (the slab that the eligibility minimum itself earns on criteria tied to it, and FULL marks
+   on every criterion that has no eligibility minimum - the best case, never a guess).
    If even that best case is below the cut-off, say so plainly with the sum, e.g. "Bidder at
-   minimum turnover and staff can reach at most 48/80 (computed) - below the 50/80 cut-off;
-   higher turnover or staff needed" - ==yellow==, in quick_decision and a review_note.
+   minimum turnover and staff can reach at most 48/80 (computed) - below the 50/80 cut-off",
+   and name the SMALLEST single step that closes the gap (e.g. "turnover above Rs 2 crore OR
+   more than 20 staff is enough"), not every possible improvement - ==yellow==, in
+   quick_decision and a review_note.
 23. Keep eligibility wording exact: do not widen or narrow it (e.g. "digital marketing
    services" is not "advertising and marketing services"; "consecutive years starting from
    2022-23" is not "any 3 consecutive years"). Say who may bid when the tender limits it
@@ -245,28 +248,37 @@ DETAIL_LEVELS = {
                 "penalties, securities and other terms, then documents_required and "
                 "quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
-    "compact": """Write the COMPACT version, about 2-3 pages. Shorter does NOT mean missing
-facts - these are MUST-HAVES, each with its source as "(p.N)":
-- Key facts table: authority, work / item, reference no., estimated value, EMD, tender /
-  document fee, performance security, turnover (and net worth if any), contract period,
-  submission deadline, pre-bid, evaluation method, price basis (what the bidder quotes:
-  rate / lump sum / % / licence fee, L1 / H1 / QCBS, GST included or extra).
-- Important Dates table: EVERY date and time stated (publication, queries, pre-bid, site
-  visit, submission, opening, presentation, bid validity, contract start / end). None skipped.
-- Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
+    "compact": """Write the COMPACT version: AT MOST 3-4 PAGES (about 900-1,300 words in all).
+This overrides the core section list above. Use ONLY these parts, in this order:
+- Key facts table (unnumbered): authority, work / item, reference no., estimated value, EMD,
+  tender / document fee, performance security, turnover (and net worth if any), contract
+  period, submission deadline, pre-bid, evaluation method, price basis (what the bidder
+  quotes: rate / lump sum / % / licence fee, L1 / H1 / QCBS / LCS, GST included or extra).
+- 1. Important Dates table: EVERY date and time stated (publication, queries, pre-bid, site
+  visit, submission, hard-copy / original EMD deadline, opening, presentation, bid
+  validity, contract start / end). None skipped.
+- 2. Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
   experience, similar work with values, turnover, net worth, certifications, manpower,
-  blacklisting, JV rule, MSE / Startup relaxations, who may bid. Do not shorten eligibility
-  in compact.
-- Evaluation: method in one line; when marks decide who qualifies, the marks table and the
-  minimum-eligibility test of rule 22 (short: one row per criterion).
-- Money & contract terms (one table): EMD, fee, security, payment, penalties / LD, escalation,
-  option clause - the figures that change the price.
-- Lots / clusters / sites table when the bidder chooses, prefers or prices lots (lot / cluster,
-  areas or locations, number of sites, size or value) - bidders decide on these.
-- Scope: at most 6 rows or bullets, naming every area / service the tender lists (even
-  briefly). Then quick_decision last.
-Every key date and amount must also be in key_facts with its exact quote.
-Skip documents_required and standard clauses.""",
+  blacklisting, JV rule, MSE / Startup relaxations, who may bid. Never shortened.
+- 3. Evaluation - ONLY when marks decide who qualifies: the marks table, one row per
+  criterion, and the rule 22 test in one line. Otherwise the method stays in key facts only.
+- 4. Money & terms table: EMD, fee, security, payment terms ("Not stated" if absent),
+  penalties / LD, escalation, option clause - one row each, only figures that change the price.
+- 5. Lots / clusters / sites table - ONLY when the bidder chooses, prefers or prices lots.
+- 6. Scope: ONE table, at most 6 rows (Area | What is required), naming every area the
+  tender lists. No service lists, no deliverable details beyond the key numbers.
+- 7. Quick Decision: at most 12 rows; include the top rejection risks here.
+Keep it tight:
+- No paragraphs or bullets outside tables, except at most 2 notes of one line each for a
+  critical conflict or trap. Conflicts go inside the table cell ("60 days (p.5) / 120 days
+  (p.10) - conflict") and in review_notes.
+- Each table cell at most about 25 words. Say each fact once - the Money table does not
+  repeat what the key facts table already gives in full.
+- LEAVE OUT in compact: EMD forfeiture / refund rules, separate rejection-grounds lists,
+  termination, sub-contracting, venue, contact e-mail, video-conference notes, office-closure
+  rules, documents_required, standard clauses, detailed service or deliverable lists.
+- Summary: 2-3 sentences.
+Every key date and amount must also be in key_facts with its exact quote.""",
 }
 
 
@@ -287,8 +299,13 @@ FINAL SELF-CHECK - before you answer, re-read every table row and bullet against
 3. Names as written: selection method, document names and form numbers exactly as the
    tender calls them (e.g. LCS is not QCBS).
 4. Nothing dropped: who may bid, every scope area listed, and "Not stated" for absent items
-   a bidder needs (payment terms, estimated value, attachments listed but missing).
+   a bidder needs (payment terms, estimated value, attachments listed but missing).{compact}
 Fix anything that fails, then return the JSON."""
+
+COMPACT_CHECK = """
+5. COMPACT length: only the parts listed for compact, at most 3-4 pages. Delete every
+   paragraph, note or row that is not a must-have (forfeiture, refunds, termination, venue,
+   service lists...) - those belong to the detailed version. Must-haves are never cut."""
 
 
 def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:
@@ -296,7 +313,8 @@ def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:
     if style_examples:
         parts.append("PAST SYNOPSES WRITTEN BY THE TEAM (match this voice, layout and "
                      "highlighting; do NOT copy their facts):\n\n" + style_examples)
-    parts.append(FINAL_CHECK)                  # last, where models follow a checklist best
+    parts.append(FINAL_CHECK.format(compact=COMPACT_CHECK if detail == "compact" else ""))
+    # the self-check goes last, where models follow a checklist best
     return "\n\n".join(parts)
 
 

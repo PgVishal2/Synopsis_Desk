@@ -784,3 +784,21 @@ def test_final_self_check_comes_last():
     from tender_synopsis.prompts import build_system_prompt
     p = build_system_prompt("PAST SYNOPSIS EXAMPLE", "compact")
     assert p.rstrip().endswith("then return the JSON.") and "One clause per cell" in p
+
+
+def test_compact_prompt_is_strict_and_detailed_is_unchanged():
+    from tender_synopsis.prompts import build_system_prompt
+    c, d = build_system_prompt("", "compact"), build_system_prompt("", "detailed")
+    assert "AT MOST 3-4 PAGES" in c and "LEAVE OUT in compact" in c and "5. COMPACT length" in c
+    assert "COMPACT length" not in d and "5-6 pages" in d
+    assert "SMALLEST single step" in c and "FULL marks" in c          # rule 22 clarified
+
+
+def test_long_compact_synopsis_is_flagged():
+    from tender_synopsis.verify import check_compact_length, synopsis_words
+    row = ["Item", "word " * 20]
+    short = Synopsis.model_validate({"profile": {}, "key_facts_table": [row] * 20, "summary": "x"})
+    long = Synopsis.model_validate({"profile": {}, "key_facts_table": [row] * 90, "summary": "x"})
+    assert check_compact_length(short) == [] and synopsis_words(short) < 1500
+    w = check_compact_length(long)
+    assert len(w) == 1 and w[0].severity == "warning" and "3-4 page target" in w[0].message

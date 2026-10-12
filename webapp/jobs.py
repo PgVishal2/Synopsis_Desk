@@ -98,8 +98,11 @@ def apply_edits(job_id: str, synopsis_data: dict) -> None:
     syn = Synopsis.model_validate(synopsis_data)
     tender = read_files(inputs(job_id))
     job = db.get_job(job_id)
+    from tender_synopsis.verify import check_compact_length
+    extra = check_compact_length(syn) if job.get("mode") == "compact" else []
     res = finish(syn, tender, out_dir(job_id), "synopsis", [p.name for p in inputs(job_id)],
-                 usage=job.get("usage") or {}, profiles=None if bid_check_enabled() else [])
+                 usage=job.get("usage") or {}, extra_issues=extra,
+                 profiles=None if bid_check_enabled() else [])
     _save_extras(job_id, res, tender)
     _record(job_id, res)
 

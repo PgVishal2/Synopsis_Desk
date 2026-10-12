@@ -28,7 +28,7 @@ rights, e-auction, lease / allotment, IBC Form G, disinvestment, multi-volume RF
 
 | Mode | Length | Content |
 |---|---|---|
-| **Compact** | about 2–3 pages | Key facts, dates table, one eligibility table, short scope, money & terms table, Quick Decision |
+| **Compact** | at most 3–4 pages | Only the must-haves: key facts, all dates, the full eligibility table, scoring table (when marks decide), money & terms, lots (if any), scope in one short table, Quick Decision. The review sheet warns if a model writes longer |
 | **Detailed** | about 5–6 pages | Full eligibility, scope & deliverables, evaluation marks, payment, penalties, securities, other terms, Documents to Submit, Quick Decision |
 
 Both modes are **table-first**: anything with 3 or more similar items becomes a table; bullets
