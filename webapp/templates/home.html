@@ -10,6 +10,7 @@
     <div class="facts-row">
       <span><b>{{ stats.total }}</b> synopses made</span>
       <span><b>{{ stats.month }}</b> this month</span>
+      {% if stats.month_cost is not none %}<span><b>₹{{ '%.2f' | format(stats.month_cost) }}</b> AI cost this month{% if stats.month_unpriced %} (+{{ stats.month_unpriced }} without a price){% endif %}</span>{% endif %}
       {% if stats.avg_minutes %}<span><b>{{ stats.avg_minutes }}</b> min on average</span>{% endif %}
       {% if stats.running %}<span><b>{{ stats.running }}</b> in progress</span>{% endif %}
     </div>

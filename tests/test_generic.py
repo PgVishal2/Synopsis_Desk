@@ -104,7 +104,9 @@ def test_structured_call_repairs_invalid_json(monkeypatch):
     syn, usage = llm.structured_call("sys", "user", Synopsis)
     assert syn.profile.synopsis_title.startswith("Tender Synopsis")
     assert usage["repairs"] == 1 and usage["input_tokens"] == 20
-    assert "did not validate" in fake.calls[1]["messages"][-1]["content"]
+    # a form-only error is repaired from the JSON alone: the tender ("user") is not sent again
+    assert usage.get("light_repair") and "does not validate" in fake.calls[1]["messages"][-1]["content"]
+    assert all(m["content"] != "user" for m in fake.calls[1]["messages"])
 
 
 def test_structured_call_gives_up_cleanly(monkeypatch):

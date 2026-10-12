@@ -48,6 +48,8 @@ def create_app() -> Flask:
         return {"csrf_token": auth.csrf_token, "org_name": org()["name"]}
 
     app.add_template_filter(rich, "rich")
+    from tender_synopsis.llm import usage_line
+    app.add_template_filter(usage_line, "usage_line")
     app.add_template_filter(lambda h: re.sub(r"^\s*\d+[.)]\s*", "", h or ""), "strip_num")
     return app
 

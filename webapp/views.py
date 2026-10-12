@@ -95,8 +95,12 @@ def home():
     month = datetime.now(timezone.utc).strftime("%Y-%m")
     done = [j for j in all_jobs if j["status"] == "done"]
     secs = [j["usage"].get("seconds") for j in done if j["usage"].get("seconds")]
+    this_month = [j for j in all_jobs if j["created"].startswith(month)]
+    costs = [j["usage"].get("cost_inr") for j in this_month if j["usage"].get("input_tokens")]
     stats = {"total": len(done),
              "month": sum(j["created"].startswith(month) for j in done),
+             "month_cost": round(sum(c for c in costs if c is not None), 2) if any(c is not None for c in costs) else None,
+             "month_unpriced": sum(c is None for c in costs),
              "avg_minutes": round(sum(secs) / len(secs) / 60, 1) if secs else None,
              "running": sum(j["status"] in ("queued", "running") for j in all_jobs)}
     return render_template("home.html", recent=all_jobs[:6], stats=stats,

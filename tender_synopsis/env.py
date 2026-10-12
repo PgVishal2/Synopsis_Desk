@@ -50,7 +50,7 @@ def load_env() -> Path | None:
     for k in [k for k in os.environ if re.match(r"^LLM[2-9]_", k) and k not in values]:
         del os.environ[k]                 # fallback removed from .env -> forget it
     for k, v in values.items():          # LLM_*, LLM2_*..LLM4_*, tuning options, COMPANY_PROFILE
-        if k in KEYS or re.match(r"^(LLM\d?_|OCR_SPACE_|COMPANY_PROFILE$)", k):
+        if k in KEYS or re.match(r"^(LLM\d?_|OCR_SPACE_|COMPANY_PROFILE$|USD_INR$)", k):
             os.environ[k] = v
     return f
 

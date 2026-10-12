@@ -317,4 +317,6 @@ Mark ok=true when the value is correct but:
   performance guarantee are the same idea; EMD / bid security / earnest money likewise);
 - the value is a faithful paraphrase or a clearly labelled calculation.
 correct_value must be the corrected value itself, never empty when ok=false.
+Source pages are given once at the top; each fact names its source page. A clause may continue
+on the following page.
 """

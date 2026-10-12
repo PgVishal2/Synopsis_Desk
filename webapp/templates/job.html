@@ -73,6 +73,7 @@
         <a class="btn ghost" href="{{ url_for('main.download', job_id=job.id, kind='review') }}">Review sheet</a>
         <a class="btn ghost" href="{{ url_for('main.download', job_id=job.id, kind='json') }}">Data (JSON)</a>
       </div>
+      {% if job.usage.input_tokens %}<p class="small muted" style="margin:12px 0 0">AI cost: {{ job.usage | usage_line }}</p>{% endif %}
     </div>
     <div class="panel">
       <h2>{{ icon('alert') }} Checks</h2>

@@ -87,7 +87,7 @@ def _run(job_id: str) -> None:
     except Exception as e:                       # shown on the job page
         traceback.print_exc()
         db.update_job(job_id, status="failed", finished=db.now(), step="Stopped",
-                      error=friendly(e)[:2000])
+                      error=friendly(e)[:2000], usage=getattr(e, "usage", None) or {})
 
 
 def apply_edits(job_id: str, synopsis_data: dict) -> None:

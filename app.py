@@ -144,6 +144,6 @@ if res:
         st.download_button("Download bid / no-bid check (.docx)", res.assessment_docx.read_bytes(),
                            file_name=res.assessment_docx.name)
     if res.usage:
-        st.caption(f"Provider {res.usage.get('provider', '-')} · model {res.usage.get('model')} · tokens in/out "
-                   f"{res.usage.get('input_tokens')}/{res.usage.get('output_tokens')} · "
+        from tender_synopsis.llm import usage_line
+        st.caption(f"{usage_line(res.usage)} · model {res.usage.get('model')} · "
                    f"{res.usage.get('seconds')} s · input: {res.usage.get('input_mode', 'full')}")

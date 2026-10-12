@@ -39,13 +39,7 @@ def llm_double_check(syn: Synopsis, tender: TenderText) -> list[Issue]:
     facts = [k for k in syn.key_facts if any(c in k.field.lower() for c in CRITICAL)]
     if not facts:
         return []
-    lines = []
-    for k in facts:
-        page = tender.page_text(k.page, k.file or None)[:6000]
-        nxt = tender.page_text(k.page + 1, k.file or None)[:2500] if k.page else ""
-        lines.append(f"FIELD: {k.field}\nSTATED VALUE: {k.value}\nSOURCE PAGE {k.page}:\n{page}"
-                     + (f"\n(NEXT PAGE, clause may continue):\n{nxt}" if nxt else ""))
-    data, _ = llm.json_call(VERIFY_PROMPT, "\n\n---\n\n".join(lines))
+    data, usage = llm.json_call(VERIFY_PROMPT, verify_input(facts, tender))
     stated = {k.field: k.value for k in facts}
     issues = []
     for c in data.get("checks", []) if isinstance(data, dict) else []:
@@ -66,6 +60,31 @@ def llm_double_check(syn: Synopsis, tender: TenderText) -> list[Issue]:
         issues.append(Issue(severity, field, f"{lead}{c.get('reason', '')}"
                             + (f" (suggested: {fix})" if fix else "")))
     return issues
+
+
+def verify_input(facts, tender: TenderText) -> str:
+    """Text for the second check. Every source page is sent ONCE (several facts often sit on the
+    same page), each with the start of its next page in case a clause continues - the same text
+    each fact saw before, without the repeats."""
+    pages: dict[tuple, str] = {}                      # (file, page) -> text, document order
+
+    def add(file, page, limit):
+        key = (file or "", page)
+        if not page or key in pages and len(pages[key]) >= limit:
+            return
+        pages[key] = tender.page_text(page, file or None)[:limit]
+    for k in facts:
+        add(k.file, k.page, 6000)
+    for k in facts:
+        if k.page:
+            add(k.file, k.page + 1, 2500)
+    multi = len({f for f, _ in pages}) > 1
+    blocks = [f"[[{f + ' | ' if multi and f else ''}PAGE {n}]]\n{t}" for (f, n), t in pages.items() if t.strip()]
+    lines = [f"FIELD: {k.field}\nSTATED VALUE: {k.value}\nSOURCE: "
+             f"{(k.file + ' | ') if multi and k.file else ''}PAGE {k.page}"
+             f" (the next page may continue the clause)" for k in facts]
+    return ("SOURCE PAGES (each given once):\n\n" + "\n\n".join(blocks)
+            + "\n\n=== FACTS TO CHECK ===\n\n" + "\n\n---\n\n".join(lines))
 
 
 def documents_table(tender: TenderText) -> list[dict]:
@@ -108,8 +127,7 @@ def write_review(syn: Synopsis, issues: list[Issue], path: Path, usage: dict,
                 f"{r.option_group} | {'' if r.amount_inr is None else f'{r.amount_inr:,.0f}'} | "
                 f"{r.count or ''} | {r.period_years or ''} | {r.file} | {r.page} |" for r in syn.requirements]
     if usage:
-        out += ["", f"_Provider: {usage.get('provider', '-')} · model: {usage.get('model')} · tokens in/out: "
-                    f"{usage.get('input_tokens')}/{usage.get('output_tokens')}_"]
+        out += ["", f"_AI usage: {llm.usage_line(usage)} · model: {usage.get('model')}_"]
     path.write_text("\n".join(out), encoding="utf-8")
 
 
@@ -122,6 +140,9 @@ def finish(syn: Synopsis, tender: TenderText, out_dir: Path, name: str, files: l
             issues = llm_double_check(syn, tender) + issues
         except Exception as e:          # the synopsis is still usable without the second check
             issues.append(Issue("warning", "second_check", f"Second AI check skipped: {llm.friendly(e)}"))
+    if llm.ledger_active():                 # a new synopsis: totals of every billed call
+        usage = dict(usage or {})
+        usage.update(llm.ledger_totals(extra=getattr(tender, "ai_usage", None)))
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / f"{name}.json"
     json_path.write_text(syn.model_dump_json(indent=2), encoding="utf-8")
@@ -145,6 +166,18 @@ def generate(files: list[str | Path], out_dir: str | Path = "output", detail: st
     files = [Path(f) for f in files]
     t0 = time.time()
     llm.reset_fallback_state()
+    llm.start_ledger()
+    try:
+        return _generate(files, out_dir, detail, double_check, exclude_example, name, profiles,
+                         say, t0)
+    except Exception as e:                   # a failed run still spent tokens - keep the count
+        e.usage = llm.ledger_totals()
+        raise
+    finally:
+        llm.stop_ledger()
+
+
+def _generate(files, out_dir, detail, double_check, exclude_example, name, profiles, say, t0):
     say("Reading the tender (OCR for scanned pages)…")
     tender = read_files(files)
     if not tender.full_text.strip():

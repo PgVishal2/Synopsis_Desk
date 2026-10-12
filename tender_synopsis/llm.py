@@ -141,8 +141,10 @@ def _with_fallback(fn, *args, mark_dead: bool = True):
             usage = dict(usage, provider=p.label)
             if failures:
                 usage["fallbacks"] = failures
+            _mark_done()
             return res, usage
         except (LLMError, APIError) as e:
+            _mark_failed_attempts(p.slot)
             msg = friendly(e)
             failures.append(f"{p.label}: {msg[:160]}")
             if mark_dead and any(w in str(e).lower() or w in msg.lower() for w in LASTING):
@@ -230,6 +232,122 @@ _NO_JSON_MODE: set[str] = set()    # models that reject response_format={"type":
 _LAST = {"flag": True}     # is the active provider the last one left? (fewer waits if not)
 
 
+# ---- Usage ledger: every API response that is billed is recorded here, per job thread -------
+# (main call, repair rounds, retries after invalid JSON, long-tender notes, the second check,
+# and attempts by a provider that failed before a backup took over). Image reading runs in OCR
+# worker threads and is counted separately by ingest (TenderText.ai_usage).
+import threading as _threading
+
+_LEDGER = _threading.local()
+
+
+def start_ledger() -> None:
+    _LEDGER.calls = []
+    _LEDGER.skip = False
+
+
+def stop_ledger() -> None:
+    _LEDGER.calls = None
+
+
+def ledger_active() -> bool:
+    return getattr(_LEDGER, "calls", None) is not None
+
+
+def _record(resp) -> None:
+    if not ledger_active() or getattr(_LEDGER, "skip", False):
+        return
+    u = getattr(resp, "usage", None)
+    if u is None:
+        return
+    cached = getattr(u, "prompt_cache_hit_tokens", None)          # DeepSeek
+    if cached is None:
+        details = getattr(u, "prompt_tokens_details", None)       # OpenAI / Gemini style
+        cached = getattr(details, "cached_tokens", None) if details is not None else None
+    p = _ACTIVE
+    _LEDGER.calls.append({"slot": p.slot if p else "LLM", "provider": p.label if p else "",
+                          "input": getattr(u, "prompt_tokens", 0) or 0,
+                          "output": getattr(u, "completion_tokens", 0) or 0,
+                          "cached": cached or 0})
+
+
+def prices(slot: str = "LLM") -> dict | None:
+    """Price per 1M tokens in USD from .env (LLM_PRICE_IN / _OUT / _CACHED, LLM2_PRICE_IN ...).
+    Returns None if no price is set for this slot."""
+    def num(name):
+        try:
+            return float(os.getenv(name, "").strip())
+        except ValueError:
+            return None
+    p_in, p_out = num(f"{slot}_PRICE_IN"), num(f"{slot}_PRICE_OUT")
+    if p_in is None or p_out is None:
+        return None
+    cached = num(f"{slot}_PRICE_CACHED")
+    return {"in": p_in, "out": p_out, "cached": p_in if cached is None else cached}
+
+
+def usd_inr() -> float:
+    try:
+        return float(os.getenv("USD_INR", "88"))
+    except ValueError:
+        return 88.0
+
+
+def cost_inr(input_tokens: int, output_tokens: int, cached: int = 0, slot: str = "LLM") -> float | None:
+    pr = prices(slot)
+    if not pr:
+        return None
+    fresh = max(0, (input_tokens or 0) - (cached or 0))
+    usd = (fresh * pr["in"] + (cached or 0) * pr["cached"] + (output_tokens or 0) * pr["out"]) / 1e6
+    return usd * usd_inr()
+
+
+def usage_line(usage: dict) -> str:
+    """'DeepSeek … · 3 AI calls · 61,200 in (9,100 cached) / 4,800 out · ≈ ₹3.10'"""
+    if not usage:
+        return ""
+    bits = [f"{usage.get('provider', '-')}"]
+    if usage.get("calls"):
+        bits.append(f"{usage['calls']} AI call{'s' if usage['calls'] != 1 else ''}")
+    tin, tout, cached = usage.get("input_tokens") or 0, usage.get("output_tokens") or 0, usage.get("cached_tokens") or 0
+    bits.append(f"{tin:,} in" + (f" ({cached:,} cached)" if cached else "") + f" / {tout:,} out tokens")
+    if usage.get("cost_inr") is not None:
+        bits.append(f"≈ ₹{usage['cost_inr']:.2f}")
+    if usage.get("failed_attempt_tokens"):
+        bits.append(f"incl. {usage['failed_attempt_tokens']:,} tokens from a provider that failed")
+    return " · ".join(bits)
+
+
+def ledger_totals(extra: dict | None = None) -> dict:
+    """Totals of everything recorded this run (+ extra, e.g. image reading done by OCR threads).
+    cost_inr is None when no prices are configured for a provider that was used."""
+    calls = list(getattr(_LEDGER, "calls", None) or [])
+    if extra and (extra.get("input_tokens") or extra.get("output_tokens")):
+        calls.append({"slot": "LLM", "provider": "image reading", "input": extra.get("input_tokens") or 0,
+                      "output": extra.get("output_tokens") or 0, "cached": 0})
+    tot = {"input_tokens": sum(c["input"] for c in calls),
+           "output_tokens": sum(c["output"] for c in calls),
+           "cached_tokens": sum(c["cached"] for c in calls), "calls": len(calls)}
+    costs = [cost_inr(c["input"], c["output"], c["cached"], c["slot"]) for c in calls]
+    tot["cost_inr"] = round(sum(costs), 2) if calls and all(c is not None for c in costs) else None
+    wasted = [c for c in calls if c.get("failed")]
+    if wasted:
+        tot["failed_attempt_tokens"] = sum(c["input"] + c["output"] for c in wasted)
+    return tot
+
+
+def _mark_failed_attempts(slot: str) -> None:
+    """Calls made by a provider that then failed are kept (they were billed) and flagged."""
+    for c in getattr(_LEDGER, "calls", None) or []:
+        if c["slot"] == slot and not c.get("done"):
+            c["failed"] = True
+
+
+def _mark_done() -> None:
+    for c in getattr(_LEDGER, "calls", None) or []:
+        c["done"] = True
+
+
 def _create(client, method: str = "create", **kw):
     """Call the API, waiting and retrying on rate limits, timeouts and server errors.
     With a fallback provider waiting, only one short retry is made before moving on."""
@@ -240,7 +358,9 @@ def _create(client, method: str = "create", **kw):
     retries = _settings()["retries"] if _LAST["flag"] else min(1, _settings()["retries"])
     for attempt in range(retries + 1):
         try:
-            return getattr(client.chat.completions, method)(**kw)
+            resp = getattr(client.chat.completions, method)(**kw)
+            _record(resp)
+            return resp
         except (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError) as e:
             daily = "per day" in str(e).lower() or "perday" in str(e).lower()
             if attempt == retries or daily:
@@ -285,8 +405,16 @@ def vision_transcribe(image: bytes, mime: str = "image/jpeg") -> tuple[str, dict
 
 
 def _vision_one(image: bytes, mime: str, last: bool = True) -> tuple[str, dict]:
-    import base64
     _LAST["flag"] = last
+    _LEDGER.skip = True              # counted via TenderText.ai_usage instead
+    try:
+        return _vision_call(image, mime)
+    finally:
+        _LEDGER.skip = False
+
+
+def _vision_call(image: bytes, mime: str) -> tuple[str, dict]:
+    import base64
     client, model = _client(), model_name()
     url = f"data:{mime};base64," + base64.b64encode(image).decode()
     resp = _create(client, model=model, max_tokens=3000, messages=[
@@ -359,6 +487,28 @@ def _structured_one(system: str, user: str, schema: type[T], last: bool = True) 
                 | ({"repairs": attempt} if attempt else {})
         except (ValueError, ValidationError) as e:
             last_err = _short_errors(e)
+            if not truncated and _form_only(e) and attempt == 0:
+                # Only the FORM is wrong (bad type, enum, JSON syntax...): fixing it needs the
+                # broken JSON and the error list, not the whole tender again. Saves ~90% of the
+                # repair cost. If this light repair fails too, the next round has full context.
+                light = [{"role": "system", "content": messages[0]["content"]},
+                         {"role": "user", "content":
+                          "This JSON object (written from a tender you can no longer see) does not "
+                          f"validate:\n{last_err}\n\nFix ONLY these problems. Keep every value, "
+                          "quote, page number and highlight exactly as it is; do not add or drop "
+                          "content. Return the complete corrected JSON object.\n\nJSON:\n"
+                          + raw[:60000]}]
+                resp = _json_request(client, model, light, extra)
+                usage = _merge_usage(usage, _usage(resp))
+                raw2 = resp.choices[0].message.content or ""
+                try:
+                    obj = schema.model_validate(loads_loose(raw2))
+                    if not _content_kept(raw, raw2):
+                        raise ValueError("light repair changed content")
+                    return obj, usage | ({"fallback": fallback_reason} if fallback_reason else {}) \
+                        | {"repairs": attempt + 1, "light_repair": True}
+                except (ValueError, ValidationError) as e2:
+                    last_err = _short_errors(e2)
             fix = ("Your JSON was cut off because it was too long. Return the COMPLETE object "
                    "again but shorter: fewer bullets, shorter sentences."
                    if truncated else
@@ -389,6 +539,34 @@ def _json_request(client, model, messages, extra):
         raise
     except Exception as e:
         raise LLMError(friendly(e)) from e
+
+
+# Validation errors that a model can fix from the JSON alone. "missing" (a required field was
+# left out) is NOT here: filling it needs the tender, so those repairs keep the full context.
+_FORM_ERRORS = ("type", "literal", "enum", "string_type", "int_parsing", "float_parsing",
+                "bool_parsing", "list_type", "extra_forbidden",
+                "too_long", "too_short", "string_too", "greater_than", "less_than")
+
+
+_CONTENT = __import__("re").compile(r'"(?:value|quote|correct_value|submission_deadline|estimated_value|'
+                                   r'reference_no|amount_inr|page)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?)')
+
+
+def _content_kept(before: str, after: str) -> bool:
+    """A light repair may only fix form. Every value, quote, amount and page number written from
+    the tender must come back unchanged - otherwise it is discarded and the full repair runs."""
+    want = _CONTENT.findall(before)
+    got = _CONTENT.findall(after)
+    return all(w in got for w in want)
+
+
+def _form_only(e: Exception) -> bool:
+    if isinstance(e, ValidationError):
+        errs = e.errors()
+        return bool(errs) and all(any(k in er.get("type", "") for k in _FORM_ERRORS)
+                                  and "missing" not in er.get("type", "")
+                                  and er.get("input") not in (None, "", [], {}) for er in errs)
+    return True                         # plain JSON syntax error: always fixable from the JSON
 
 
 def _short_errors(e: Exception, limit: int = 12) -> str:

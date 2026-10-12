@@ -173,6 +173,8 @@ run it again.
 | `LLM2_…`, `LLM3_…`, `LLM4_…` | Backup providers (same three variables each) |
 | `LLM_MAX_INPUT_TOKENS` | Text sent in one call (e.g. `120000`; above it, long tenders are condensed) |
 | `LLM_JSON_MODE` | Leave unset (auto) unless told otherwise |
+| `LLM_PRICE_IN`, `LLM_PRICE_OUT`, `LLM_PRICE_CACHED` | Main provider's price in US$ per 1M tokens (input, output, cached input). Shows the ₹ cost of each synopsis (result page, History, review sheet) and the month's total on Home. `LLM2_PRICE_…` etc. for backups |
+| `USD_INR` | Exchange rate used for the ₹ cost (default `88`) |
 | `GEMINI_KEY_HEADER` | Only for Google keys starting `AQ.` if Gemini rejects them (`bearer` / `header`) |
 | `OCR_SPACE_API_KEY` | Cloud OCR (optional – Tesseract is always the backup) |
 | `OCR_ENGINE`, `OCR_WORKERS`, `OCR_SPACE_LANGUAGE`, `OCR_SPACE_ENGINE` | OCR tuning (optional) |

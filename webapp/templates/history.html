@@ -12,13 +12,14 @@
 <div class="panel">
   {% if items %}
   <div class="table-wrap"><table>
-    <tr><th>Synopsis</th><th>Made</th><th>Files</th><th>Checks</th><th>Status</th><th>Action</th></tr>
+    <tr><th>Synopsis</th><th>Made</th><th>Files</th><th>Checks</th><th>AI cost</th><th>Status</th><th>Action</th></tr>
     {% for j in items %}
     <tr>
       <td><a href="{{ url_for('main.job', job_id=j.id) }}" class="t">{{ j.title or 'Untitled' }}</a></td>
       <td class="small">{{ j.created | when }}</td>
       <td class="small muted">{{ j.files | join(', ') }}</td>
       <td class="small">{% if j.status == 'done' %}{{ j.counts.get('error', 0) }} to fix, {{ j.counts.get('warning', 0) }} to review{% endif %}</td>
+      <td class="small">{% if j.usage.get('cost_inr') is not none %}₹{{ '%.2f' | format(j.usage.cost_inr) }}{% elif j.usage.input_tokens %}{{ '{:,}'.format((j.usage.input_tokens or 0) + (j.usage.output_tokens or 0)) }} tokens{% endif %}</td>
       <td><span class="badge {{ j.status }}">{{ {'done':'Ready','running':'Working','queued':'Waiting','failed':'Failed'}[j.status] }}</span></td>
       <td style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         {% if j.status == 'done' %}

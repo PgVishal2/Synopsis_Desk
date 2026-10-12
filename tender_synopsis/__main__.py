@@ -80,6 +80,8 @@ def main(argv=None):
         print(f"  {x.company}: {x.verdict}")
     print(f"Checks: {errs} error(s), {len(res.issues) - errs} warning/info")
     if res.usage:
+        from .llm import usage_line
+        print("AI usage:", usage_line(res.usage))
         print("Usage:", res.usage)
 
 
