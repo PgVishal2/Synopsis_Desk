@@ -1,0 +1,13 @@
+Synopsis Desk - API credit optimisation (based on commit 728753f)
+
+Option A: copy the files in this zip over your project (same folder structure).
+Option B: in the project folder run:   git apply credit_optimisation.patch
+
+Then add your provider's prices (US$ per 1 million tokens) to .env AND to Railway Variables:
+  LLM_PRICE_IN=...        input price
+  LLM_PRICE_OUT=...       output price
+  LLM_PRICE_CACHED=...    cached-input price (optional; DeepSeek has one)
+  USD_INR=88              exchange rate (optional)
+Backups: LLM2_PRICE_IN / LLM2_PRICE_OUT ... (optional). Without prices, token counts still show.
+
+Check:  python -m pytest -q tests     (61 tests)

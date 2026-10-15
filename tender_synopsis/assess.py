@@ -357,5 +357,5 @@ def to_docx(syn: Synopsis, results: list[Assessment], path: Path) -> Path:
         _table(doc, ["", "Requirement", "Option", "Assessment", "Page"], rows,
                [1.0, 6.2, 1.8, 6.8, 1.2])
     path = Path(path)
-    doc.save(path)
+    doc.save(str(path))
     return path
