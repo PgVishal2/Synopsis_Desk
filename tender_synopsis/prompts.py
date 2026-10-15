@@ -181,9 +181,22 @@ CORE SECTIONS (always include, in this order; merge or rename to suit the tender
                        bid, non-matching MSE category…). Compact: the top 3 go in quick_decision.
 - corrigenda           When a corrigendum / addendum is uploaded: what changed (old -> new,
                        file, page). The rest of the synopsis uses the new values.
-- documents_required   "Documents to Submit" checklist: one bullet per document or form the
-                       bidder must upload / submit (forms, certificates, registrations,
-                       undertakings, presentation). Short names only, as the tender names them.
+- documents_required   "Documents to Submit" - ALWAYS included (compact too): ONE table
+                       (Document / form | Format or condition | Where) with one row per item
+                       the bidder must submit. Build it from EVERY source in the tender: the
+                       checklist / index, every Form / Annexure / Appendix / Format, the proof
+                       named for each eligibility and scored criterion, fee / EMD instruments,
+                       power of attorney, undertakings, BoQ / price bid, samples, hard copies,
+                       and copies of registrations and certificates even when they carry no
+                       form number (e.g. GST, PAN, EPF / ESI, MSME / Udyam, incorporation,
+                       ITRs, audited accounts, CA certificate, ISO) - unnumbered items are
+                       as crucial as numbered forms.
+                       Use the tender's own names and numbers (e.g. "Form TECH-4 - CA
+                       certificate"). Format = on letterhead / notarised / signed by CA with
+                       UDIN / self-attested / scanned PDF, as stated. Where = technical cover,
+                       financial cover, portal upload or physical submission. Never write
+                       "as per tender" or "all relevant documents". A missing document is a
+                       rejection, so this list is never shortened.
 - quick_decision       LAST section, "Quick Decision": a table with headers
                        ["Question", "Answer"]. 8-12 plain-language Yes/No questions a bidder
                        decides on, each answered "Yes" / "No" / "Not stated" plus the figure,
@@ -245,12 +258,14 @@ Add any other section that a bid/no-bid decision would depend on (key = 'custom'
 DETAIL_LEVELS = {
     "detailed": "Write the DETAILED version, about 5-6 pages: 9-14 numbered sections covering "
                 "the full eligibility, scope, deliverables, evaluation marks, payment, "
-                "penalties, securities and other terms, then documents_required and "
-                "quick_decision last. Give every condition a bidder must meet or price for - "
+                "penalties, securities and other terms, then documents_required (the "
+                "complete Documents to Submit table) and quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
     "compact": """Write the COMPACT version: 3-4 PAGES (about 1,000-1,400 words in all).
+(The Documents to Submit table does not count toward this length - it is never shortened.)
 BALANCE: a CRUCIAL detail is one that can disqualify a bidder, cost money, change the price,
-set a hard deadline, or is an eligibility condition or a conflict between documents. Every
+set a hard deadline, or is an eligibility condition, a document the bidder must submit, or a
+conflict between documents. Every
 crucial detail stays, in one short row. Everything else is compressed or left out.
 NOT crucial (leave out unless this tender's version is unusual - e.g. an extra forfeiture
 ground, a higher %, a very short time limit): the standard EMD / security forfeiture events,
@@ -285,11 +300,13 @@ This overrides the core section list above. Use ONLY these parts, in this order:
 - 6. Scope: ONE table only, at most 6 rows (Area | What is required), naming every area the
   tender lists, with only the key numbers. If the bidder quotes per scope / lot, say so in
   one row of this table - never a second scope table.
-- 7. Rejected if: ONE table of the stated grounds for summary rejection or disqualification
+- 7. Documents to Submit: the documents_required table - complete, one short row per item,
+  never shortened (Format / Where columns at most about 10 words).
+- 8. Rejected if: ONE table of the stated grounds for summary rejection or disqualification
   (missing fee / EMD / originals, late hard copy, financial details in the technical bid,
   more than one bid, conditional bid, unsigned or illegible pages, conflict of interest...)
   - at most 8 rows of about 12 words, only grounds the tender states.
-- 8. Quick Decision: at most 12 rows, each answer about 15 words; do not re-list the tables.
+- 9. Quick Decision: at most 12 rows, each answer about 15 words; do not re-list the tables.
 Keep it tight:
 - No paragraphs or bullets outside tables, except at most 2 notes of one line each for a
   critical conflict or trap. Conflicts go inside the table cell ("60 days (p.5) / 120 days
@@ -297,7 +314,7 @@ Keep it tight:
 - Each table cell at most about 25 words. Say each fact once - later tables do not repeat
   what the key facts table already gives in full.
 - Leave out in compact ONLY procedural detail: refund timelines, venue, contact e-mail,
-  video-conference and office-closure notes, service / deliverable lists, documents_required,
+  video-conference and office-closure notes, service / deliverable lists,
   standard clauses (arbitration, force majeure, jurisdiction). If a usually-procedural clause
   is unusual or can cost the bidder money or the bid, it is NOT procedural - keep it.
 - Summary: 2-3 short sentences (about 60 words).
@@ -321,8 +338,10 @@ FINAL SELF-CHECK - before you answer, re-read every table row and bullet against
    you calculated ends with "(computed)".
 3. Names as written: selection method, document names and form numbers exactly as the
    tender calls them (e.g. LCS is not QCBS).
-4. Nothing dropped: who may bid, every scope area listed, and "Not stated" for absent items
-   a bidder needs (payment terms, estimated value, attachments listed but missing).{compact}
+4. Nothing dropped: who may bid, every scope area listed, "Not stated" for absent items a
+   bidder needs (payment terms, estimated value, attachments listed but missing), and the
+   Documents to Submit table holds every checklist item, form, annexure, appendix and proof
+   the tender names.{compact}
 Fix anything that fails, then return the JSON."""
 
 COMPACT_CHECK = """
@@ -330,7 +349,8 @@ COMPACT_CHECK = """
    shorten wording and merge repeated rows (one scope table; nothing repeated from key
    facts), then delete procedural detail (standard forfeiture and refund rules, venue,
    contacts, service lists, minor "Not stated" rows). Never delete a crucial detail
-   (disqualifier, deadline, eligibility condition, conflict, figure that changes the price)."""
+   (disqualifier, deadline, eligibility condition, required document, conflict, figure that
+   changes the price)."""
 
 
 def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:

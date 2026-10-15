@@ -634,6 +634,110 @@ def check_table_figures(syn: Synopsis, tender: TenderText) -> list[Issue]:
     return issues
 
 
+# ---- Documents to submit -------------------------------------------------------------------
+# A missing document is one of the commonest reasons a bid is rejected, so the synopsis must
+# list them, and every form / annexure / appendix the tender names should appear in that list.
+FORM_REF = re.compile(r"\b(?i:(annexure|annex|appendix|proforma|format|form))\b"
+                      r"(?:[ \t]?[-–.:][ \t]?|[ \t])?(?:(?i:no)\.?[ \t]*)?"
+                      r"((?:[A-Z]{2,6}[ \t]*[-–]?[ \t]*)?(?:\d{1,3}|[IVXL]{1,5})(?:\.\d{1,2})?[A-Z]?|[A-Z])\b")
+_FAMILY = {"annexure": "Annexure", "annex": "Annexure", "appendix": "Appendix",
+           "proforma": "Form", "format": "Form", "form": "Form"}
+
+
+def _form_refs(text: str) -> dict[tuple, str]:
+    """{(family, ID): 'Form TECH-1'} for every form / annexure / appendix named in the text."""
+    out = {}
+    for m in FORM_REF.finditer(text or ""):
+        fam = _FAMILY[m[1].lower()]
+        ident = re.sub(r"[\s\-–]", "", m[2]).upper()
+        out.setdefault((fam, ident), f"{fam} {m[2].strip()}")
+    return out
+
+
+# Common unnumbered documents: (label, how the tender asks for it, how the list would name it,
+#  phrase in the synopsis that means it is not needed). Generic for Indian tenders.
+DOC_KINDS = [
+ ("Tender / document fee", r"tender (?:document )?fee|document fee|cost of (?:the )?(?:tender|bid) document", r"\bfee"),
+ ("EMD / bid security", r"\bEMD\b|earnest money|bid security", r"\bEMD\b|earnest|bid security"),
+ ("GST registration", r"\bGST(?:IN)?\b[^.\n]{0,25}(?:registration|certificate|number|no\b)|registration[^.\n]{0,20}\bGST\b|copy of GST", r"\bGST"),
+ ("PAN card", r"\bPAN\b[^.\n]{0,15}(?:card|number|no\b)|copy of (?:the )?PAN|valid PAN", r"\bPAN\b"),
+ ("EPF / EPFO registration", r"\b(?:EPFO|EPF|PF)\b[^.\n]{0,20}(?:registration|certificate|code)", r"\b(?:EPFO|EPF|PF)\b"),
+ ("ESI / ESIC registration", r"\bESIC?\b[^.\n]{0,20}(?:registration|certificate|code)", r"\bESIC?\b"),
+ ("MSME / Udyam / NSIC certificate", r"\b(?:udyam|MSME|NSIC|MSE)\b[^.\n]{0,30}(?:registration|certificate)", r"udyam|msme|nsic|\bmse\b"),
+ ("Certificate of incorporation / firm registration", r"certificate of incorporation|partnership (?:deed|registration)|registration certificate of the (?:firm|company)", r"incorporation|partnership|registration certificate"),
+ ("Audited balance sheets / P&L", r"audited (?:balance sheets?|financial statements?|annual (?:statements?|accounts)|accounts)|profit (?:and|&) loss", r"balance sheet|audited|p\s?&\s?l|profit"),
+ ("Income Tax Returns", r"\bITRs?\b|income tax returns?", r"\bITRs?\b|income tax"),
+ ("CA certificate", r"\bCA certificate|certificate[^.\n]{0,30}chartered accountant|chartered accountant'?s? certificate", r"\bCA\b|chartered accountant"),
+ ("Power of attorney / authorisation", r"power of attorney|board resolution|letter of authori[sz]ation", r"attorney|resolution|authori[sz]ation"),
+ ("Experience proof (work orders / completion certificates)", r"cop(?:y|ies) of (?:the )?(?:signed )?(?:work orders?|contracts?|agreements?)|completion certificates?|experience certificates?|performance certificates?", r"work order|completion|experience|contract|agreement|client"),
+ ("Non-blacklisting declaration", r"(?:blacklist|debar)\w*[^.\n]{0,60}(?:declaration|undertaking|affidavit)|(?:declaration|undertaking|affidavit)[^.\n]{0,60}(?:blacklist|debar)", r"blacklist|debar"),
+ ("Manpower / HR declaration", r"(?:employee|manpower|staff|\bHR\b)\w*[^.\n]{0,40}(?:declaration|certificate)", r"\bHR\b|employee|manpower|staff"),
+ ("Price bid / BoQ", r"\bBoQ\b|price bid|financial bid|price schedule|financial proposal", r"boq|price|financial"),
+ ("Integrity pact", r"integrity pact", r"integrity"),
+ ("OEM / manufacturer authorisation", r"\bMAF\b|manufacturer'?s? authori[sz]ation|OEM authori[sz]ation", r"\bmaf\b|\boem\b|manufacturer"),
+ ("ISO / quality certificate", r"\bISO\s?\d{4,5}", r"\biso\b"),
+ ("Solvency certificate", r"solvency certificate", r"solvency"),
+ ("Labour licence", r"labour licen[cs]e", r"labour"),
+ ("Bank mandate / cancelled cheque", r"cancelled cheque|bank mandate", r"cheque|mandate|bank details"),
+]
+
+
+_SUBMIT_CUE = re.compile(r"submi|enclos|upload|attach|cop(?:y|ies)\b|checklist|proof|evidence|"
+                         r"self[- ]?attested|furnish|documents? (?:required|to be)", re.I)
+_NOT_NEEDED = {"Tender / document fee": r"fee[^.]{0,40}(?:nil|not (?:required|applicable)|exempt|waived)",
+               "EMD / bid security": r"(?:emd|earnest|bid security)[^.]{0,40}(?:nil|not (?:required|"
+                                     r"applicable)|exempt|waived)"}
+
+
+def _asked_for(rx: str, text: str) -> bool:
+    """The tender names this document near a submission cue ('copy of', 'submit', 'proof'...)."""
+    return any(_SUBMIT_CUE.search(text[max(0, m.start() - 150):m.end() + 150])
+               for m in re.finditer(rx, text, re.I))
+
+
+def _docs_text(syn: Synopsis) -> str | None:
+    """Text of the 'Documents to Submit' section, or None if the synopsis has none."""
+    found = None
+    for sec in syn.sections:
+        head = sec.heading.lower()
+        if sec.key == "documents_required" or ("document" in head and re.search(
+                r"submit|required|checklist|upload|enclose", head)):
+            parts = []
+            for b in sec.blocks:
+                parts += [b.text or ""] + [" ".join(r) for r in b.rows or []]
+                parts += [" ".join([it.text] + list(it.sub_items or [])) for it in b.items or []]
+            found = (found or "") + " " + " ".join(parts)
+    return found
+
+
+def check_documents(syn: Synopsis, tender: TenderText) -> list[Issue]:
+    docs = _docs_text(syn)
+    if docs is None:
+        return [Issue("warning", "documents", "No 'Documents to Submit' list - a missing document is a "
+                      "common reason for rejection; check the tender's checklist, forms and annexures.")]
+    if not tender.pages:
+        return []
+    issues = []
+    listed = _form_refs(docs)
+    flat = re.sub(r"[\s\-–]", "", docs.upper())
+    missing = [name for key, name in _form_refs(tender.full_text).items()
+               if key not in listed and not (re.search(r"[A-Z]{2}", key[1]) and key[1] in flat)]
+    if missing:
+        shown = ", ".join(missing[:12]) + (f" (+{len(missing) - 12} more)" if len(missing) > 12 else "")
+        issues.append(Issue("warning", "documents", f"Forms named in the tender but not in the "
+                            f"Documents to Submit list: {shown}. Add them if the bidder must submit them."))
+    # unnumbered documents (GST, PAN, ITRs, CA certificate...) asked for in the tender
+    everything = " ".join(_all_strings(syn)).lower()
+    absent = [label for label, ask, named in DOC_KINDS
+              if _asked_for(ask, tender.full_text) and not re.search(named, docs, re.I)
+              and not (label in _NOT_NEEDED and re.search(_NOT_NEEDED[label], everything))]
+    if absent:
+        issues.append(Issue("warning", "documents", "Documents the tender asks for that are not in "
+                            f"the Documents to Submit list: {', '.join(absent)}. Add them if the "
+                            "bidder must submit them."))
+    return issues
+
+
 # ---- Compact length -----------------------------------------------------------------------
 COMPACT_MAX_WORDS = 1700        # about 5 Word pages of tables (measured: ~340 words per page)
 WORDS_PER_PAGE = 340
@@ -643,6 +747,9 @@ def synopsis_words(syn: Synopsis) -> int:
     """Words a reader sees in the Word file (top table, sections, summary)."""
     parts = [" ".join(r) for r in syn.key_facts_table]
     for sec in syn.sections:
+        if sec.key == "documents_required" or re.search(r"document.*(submit|required|checklist)",
+                                                         sec.heading, re.I):
+            continue                    # never shortened, so it does not count toward length
         parts.append(sec.heading)
         for b in sec.blocks:
             parts += [b.text or "", " ".join(b.headers or [])]
@@ -682,7 +789,8 @@ def _run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
               [Issue("info", "sources", "Tender not supplied - source quotes not checked.")])
     if tender.pages:
         quotes += check_requirements(syn, tender) + check_table_figures(syn, tender)
-    issues = quotes + check_empty(syn) + check_dates(syn) + check_markup(syn) + check_coverage(syn)
+    issues = (quotes + check_empty(syn) + check_dates(syn) + check_markup(syn) + check_coverage(syn)
+              + check_documents(syn, tender))
     issues += [Issue("warning", "ingest", w) for w in tender.warnings]
     issues += [Issue("warning", "model_note", n) for n in syn.review_notes]
     order = {"error": 0, "warning": 1, "info": 2}

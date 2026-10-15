@@ -821,3 +821,47 @@ def test_page_refs_month_first_dates_and_conflicts_are_not_false_alarms():
          "quote": "valid for a period of 120 days from the deadline"}]})
     flagged = {i.field for i in check_quotes(s, t)}
     assert flagged == {"bad"}                       # only the real mismatch is reported
+
+
+def test_documents_to_submit_list_is_required_and_checked_against_tender_forms():
+    from tender_synopsis.verify import check_documents, synopsis_words
+    t = TenderText(pages=[Page("rfp.pdf", 4, "Documents checklist: Form TECH-1 submission form, "
+                               "Form TECH-2 experience, FORM TECH-4 CA certificate, Annexure-II "
+                               "power of attorney. EMD in the form of Bank Guarantee.")])
+    none = Synopsis.model_validate({"profile": {}, "sections": []})
+    assert "No 'Documents to Submit' list" in check_documents(none, t)[0].message
+    docs = {"key": "documents_required", "heading": "7. Documents to Submit", "blocks": [
+        {"type": "table", "text": "", "headers": ["Document", "Format", "Where"], "items": [],
+         "rows": [["TECH-1 Technical proposal submission form", "signed", "technical"],
+                  ["Form TECH-4 CA certificate", "UDIN", "technical"]]}]}
+    s = Synopsis.model_validate({"profile": {}, "sections": [docs]})
+    w = [i.message for i in check_documents(s, t) if i.message.startswith("Forms named")]
+    assert len(w) == 1 and "Form TECH-2" in w[0] and "Annexure II" in w[0]
+    assert "TECH-1" not in w[0] and "TECH-4" not in w[0] and "form of" not in w[0]
+    assert synopsis_words(s) == 0                      # the documents list never counts as length
+
+
+def test_prompts_always_ask_for_documents_list():
+    from tender_synopsis.prompts import build_system_prompt
+    for mode in ("compact", "detailed"):
+        p = build_system_prompt("", mode)
+        assert "ALWAYS included (compact too)" in p and "never shortened" in p
+    assert "Documents to Submit: the documents_required table" in build_system_prompt("", "compact")
+
+
+def test_unnumbered_documents_like_gst_and_pan_are_checked():
+    from tender_synopsis.verify import check_documents
+    t = TenderText(pages=[Page("nit.pdf", 3, "Documents to be submitted: Copy of GST Registration "
+                               "Certificate; Copy of PAN Card; Income Tax Returns for 3 years; "
+                               "Power of Attorney. Prices are exclusive of GST. EMD: Nil.")])
+
+    def syn(rows, extra=""):
+        return Synopsis.model_validate({"profile": {}, "summary": extra, "sections": [
+            {"key": "documents_required", "heading": "Documents to Submit", "blocks": [
+                {"type": "table", "text": "", "headers": ["Document"], "items": [], "rows": rows}]}]})
+    w = check_documents(syn([["GST registration certificate"]], "EMD is nil."), t)
+    msg = " ".join(i.message for i in w)
+    assert "PAN card" in msg and "Income Tax Returns" in msg and "Power of attorney" in msg
+    assert "GST registration" not in msg and "EMD" not in msg       # listed / stated as nil
+    full = [["GST certificate"], ["PAN"], ["ITRs (3 years)"], ["Power of Attorney"]]
+    assert check_documents(syn(full, "EMD is nil."), t) == []

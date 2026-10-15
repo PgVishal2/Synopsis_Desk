@@ -20,7 +20,7 @@ rights, e-auction, lease / allotment, IBC Form G, disinvestment, multi-volume RF
 
 | Output | What it is |
 |---|---|
-| **Synopsis (.docx)** | Key facts table, numbered sections chosen for the tender type, *Documents to Submit* checklist (detailed mode), *Quick Decision* table and a *✅ In Summary* |
+| **Synopsis (.docx)** | Key facts table, numbered sections chosen for the tender type, *Documents to Submit* table (both modes), *Quick Decision* table and a *✅ In Summary* |
 | **Review sheet (.md)** | Errors ❌ / warnings ⚠️ / info ℹ️, every key fact with file, page and exact quote, the documents read and their roles, the AI provider used and tokens spent |
 | **Data (.json)** | The synopsis as editable data – edit and rebuild the Word file without another AI call |
 
@@ -28,7 +28,7 @@ rights, e-auction, lease / allotment, IBC Form G, disinvestment, multi-volume RF
 
 | Mode | Length | Content |
 |---|---|---|
-| **Compact** | 3–4 pages (5 at most) | Every crucial detail, said briefly: key facts, all dates, the full eligibility table, scoring table (when marks decide), money & terms, lots (if any), scope in one short table, "Rejected if", Quick Decision. Procedural detail is left out. The review sheet warns above about 5 pages; nothing is cut automatically |
+| **Compact** | 3–4 pages (5 at most) | Every crucial detail, said briefly: key facts, all dates, the full eligibility table, scoring table (when marks decide), money & terms, lots (if any), scope in one short table, Documents to Submit, "Rejected if", Quick Decision. Procedural detail is left out. The review sheet warns above about 5 pages; nothing is cut automatically |
 | **Detailed** | about 5–6 pages | Full eligibility, scope & deliverables, evaluation marks, payment, penalties, securities, other terms, Documents to Submit, Quick Decision |
 
 Both modes are **table-first**: anything with 3 or more similar items becomes a table; bullets
@@ -75,6 +75,7 @@ has passed, the app itself adds *"Bid still open? – No"*.
 |---|---|
 | Source quotes | Every key date, amount and requirement carries a file, page and exact quote; the app confirms the quote exists in the documents |
 | Number match | Numbers in each value must appear in its quote (₹4 crore = 4,00,00,000; any date format) |
+| Documents to Submit | Warns if the list is missing; names every Form / Annexure / Appendix the tender mentions that the list leaves out, and common unnumbered documents the tender asks for (GST, PAN, EPF/ESI, MSME, incorporation, ITRs, audited accounts, CA certificate, power of attorney, experience proof, declarations, BoQ, integrity pact, ISO…) |
 | Table figures | Every amount, percentage and period written in the tables and bullets must exist somewhere in the documents (portal data-sheet formats like "Percentage(%) 5.00" included); otherwise ⚠️ "check it". Calculations must say "computed" |
 | **Lakh / crore slip** | An amount 10×, 100× or 1000× off its source becomes a red ❌ (e.g. 290000000 written as ₹2.9 crore) |
 | Second AI check | A short second call re-checks critical figures against their page (and the next page); "could not confirm" is a ⚠️, a different number is a ❌ |
