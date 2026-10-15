@@ -739,7 +739,7 @@ def check_documents(syn: Synopsis, tender: TenderText) -> list[Issue]:
 
 
 # ---- Compact length -----------------------------------------------------------------------
-COMPACT_MAX_WORDS = 1700        # about 5 Word pages of tables (measured: ~340 words per page)
+COMPACT_MAX_WORDS = 1400        # about 4 Word pages of tables (measured: ~340 words per page)
 WORDS_PER_PAGE = 340
 
 
@@ -766,9 +766,9 @@ def check_compact_length(syn: Synopsis) -> list[Issue]:
     pages = max(5, round(words / WORDS_PER_PAGE))
     # a check, not a cut: nothing is removed automatically, because a missing detail costs more
     return [Issue("warning", "length", f"This compact synopsis is about {pages} pages "
-                  f"({words:,} words) - longer than compact should be (3-4, at most 5). Look for "
-                  "repeated rows or long wording to trim on the results page; nothing was "
-                  "removed automatically.")]
+                  f"({words:,} words, not counting Documents to Submit) - longer than compact should "
+                  "be (3-4 pages). Look for sentence-like cells or repeated facts to trim on the "
+                  "results page; nothing was removed automatically.")]
 
 
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:

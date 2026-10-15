@@ -789,11 +789,10 @@ def test_final_self_check_comes_last():
 def test_compact_prompt_is_strict_and_detailed_is_unchanged():
     from tender_synopsis.prompts import build_system_prompt
     c, d = build_system_prompt("", "compact"), build_system_prompt("", "detailed")
-    assert "3-4 PAGES" in c and "5. COMPACT balance" in c
-    assert "Rejected if" in c and "never WHICH decision points" in c            # cut wording, not topics
-    assert "BALANCE" in c and "5 at most and only for crucial details" in c
-    assert "NOT crucial" in c and "never a second scope table" in c
-    assert "COMPACT balance" not in d and "5-6 pages" in d
+    assert "3-4 PAGES" in c and "5. COMPACT: keyword style" in c
+    assert "KEYWORDS, NOT SENTENCES" in c and "Each fact appears ONCE" in c
+    assert "Rejected If" in c and "keeps its OWN row in the table it belongs to" in c
+    assert "COMPACT: keyword style" not in d and "5-6 pages" in d
     assert "SMALLEST single step" in c and "FULL marks" in c          # rule 22 clarified
 
 
@@ -846,7 +845,7 @@ def test_prompts_always_ask_for_documents_list():
     for mode in ("compact", "detailed"):
         p = build_system_prompt("", mode)
         assert "ALWAYS included (compact too)" in p and "never shortened" in p
-    assert "Documents to Submit: the documents_required table" in build_system_prompt("", "compact")
+    assert "7. Documents to Submit: complete" in build_system_prompt("", "compact")
 
 
 def test_unnumbered_documents_like_gst_and_pan_are_checked():

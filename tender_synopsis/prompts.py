@@ -261,63 +261,57 @@ DETAIL_LEVELS = {
                 "penalties, securities and other terms, then documents_required (the "
                 "complete Documents to Submit table) and quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
-    "compact": """Write the COMPACT version: 3-4 PAGES (about 1,000-1,400 words in all).
-(The Documents to Submit table does not count toward this length - it is never shortened.)
-BALANCE: a CRUCIAL detail is one that can disqualify a bidder, cost money, change the price,
-set a hard deadline, or is an eligibility condition, a document the bidder must submit, or a
-conflict between documents. Every
-crucial detail stays, in one short row. Everything else is compressed or left out.
-NOT crucial (leave out unless this tender's version is unusual - e.g. an extra forfeiture
-ground, a higher %, a very short time limit): the standard EMD / security forfeiture events,
-refund timelines, generic termination, and "Not stated" rows for minor topics such as
-sub-contracting. "Not stated" is written only for what a bidder needs: payment terms,
-estimated value, contract start, a missing attachment. Only if the
-crucial details alone need it may the synopsis reach 5 pages; going beyond that means the
-wording is too long or rows repeat - tighten them, do not drop crucial details.
-Compact cuts HOW MUCH is said about each point, never WHICH decision points appear. Anything
-that can disqualify a bidder, cost money, change the price or set a hard deadline must appear
-- in one short row. Only procedural detail that changes none of these is left out.
-This overrides the core section list above. Use ONLY these parts, in this order:
-- Key facts table (unnumbered): authority, work / item, reference no., estimated value, EMD,
-  tender / document fee, performance security, turnover (and net worth if any), contract
-  period, submission deadline, pre-bid, evaluation method, price basis (what the bidder
-  quotes: rate / lump sum / % / licence fee, L1 / H1 / QCBS / LCS, GST included or extra).
-- 1. Important Dates table - dates only: EVERY date and time stated (publication, queries,
-  pre-bid, site visit, submission, hard-copy / original EMD deadline, opening, presentation,
-  bid validity, contract start / end). None skipped; copy each time exactly from its clause.
-  No venues, durations or notes in this table.
-- 2. Eligibility table (Criterion | Requirement | Proof): EVERY qualifying condition - legal,
-  experience, similar work with values, turnover, net worth, certifications, manpower,
-  blacklisting, JV rule, MSE / Startup relaxations, who may bid. Never shortened.
-- 3. Evaluation - ONLY when marks decide who qualifies: the marks table (Criterion | Slabs ->
-  marks | Max | Evidence asked for, when the tender names it), and the rule 22 test in one
-  line. Otherwise the method stays in key facts only.
-- 4. Money & terms table: EMD, fee, security, payment terms ("Not stated" if absent),
-  penalties / LD, escalation, option clause, award rule - one row each. Add only what the
-  key facts table does not already say (e.g. the payment instrument and validity once),
-  never the same amount and terms twice.
-- 5. Lots / clusters / sites table - ONLY when the bidder chooses, prefers or prices lots.
-- 6. Scope: ONE table only, at most 6 rows (Area | What is required), naming every area the
-  tender lists, with only the key numbers. If the bidder quotes per scope / lot, say so in
-  one row of this table - never a second scope table.
-- 7. Documents to Submit: the documents_required table - complete, one short row per item,
-  never shortened (Format / Where columns at most about 10 words).
-- 8. Rejected if: ONE table of the stated grounds for summary rejection or disqualification
-  (missing fee / EMD / originals, late hard copy, financial details in the technical bid,
-  more than one bid, conditional bid, unsigned or illegible pages, conflict of interest...)
-  - at most 8 rows of about 12 words, only grounds the tender states.
-- 9. Quick Decision: at most 12 rows, each answer about 15 words; do not re-list the tables.
-Keep it tight:
-- No paragraphs or bullets outside tables, except at most 2 notes of one line each for a
-  critical conflict or trap. Conflicts go inside the table cell ("60 days (p.5) / 120 days
-  (p.10) - conflict") and in review_notes.
-- Each table cell at most about 25 words. Say each fact once - later tables do not repeat
-  what the key facts table already gives in full.
-- Leave out in compact ONLY procedural detail: refund timelines, venue, contact e-mail,
-  video-conference and office-closure notes, service / deliverable lists,
-  standard clauses (arbitration, force majeure, jurisdiction). If a usually-procedural clause
-  is unusual or can cost the bidder money or the bid, it is NOT procedural - keep it.
-- Summary: 2-3 short sentences (about 60 words).
+    "compact": """Write the COMPACT version: 3-4 PAGES (about 900-1,200 words, not counting the
+Documents to Submit table).
+WHAT stays: every CRUCIAL detail - anything that can disqualify a bidder, cost money, change
+the price or set a hard deadline, every eligibility condition, every document to submit, and
+every conflict between documents. HOW it is written: KEYWORDS, NOT SENTENCES. Compact keeps
+every crucial point but says each one in the fewest words that still carry the figure.
+KEYWORD STYLE (all tables):
+- A cell is a short phrase: the figure, the condition, the form name - no explanations,
+  reasons, examples or clause-by-clause wording. Label cells at most 5 words; value cells
+  at most about 12 words.
+  WRONG: "Must hold valid empanelment throughout the contract; lapse, suspension or
+          withdrawal means automatic termination of the agreement (p.11)"
+  RIGHT: "Valid throughout; lapse = termination (p.11)"
+  WRONG: "Integrated strategy, audience segmentation, channel mix, press releases, media
+          briefs, FAQs, outreach, monitoring, sentiment analysis, crisis communication..."
+  RIGHT: "Media strategy, press releases, outreach, monitoring, crisis comms"
+- Each fact appears ONCE in the whole synopsis. The key facts table is the master: later
+  tables never repeat a figure it already gives (refer to it, or leave it out).
+- Something the tender does not state keeps its OWN row in the table it belongs to, with
+  the value "Not stated" - e.g. Eligibility: "JV / consortium | Not stated"; Important
+  Dates: "Pre-bid meeting | Not stated", "Bid opening | Not stated". Two words, no
+  explanation; one row per item, so the reader sees each gap where they would look for it.
+- Page references only as a short "(p.N)" at the end of a cell, when useful.
+PARTS, in this order (this overrides the core section list above):
+- Key facts table (unnumbered): authority, work, reference no., estimated value, EMD, fee,
+  performance security, turnover / net worth, contract period, submission deadline,
+  pre-bid, evaluation method, price basis (what is quoted; L1 / H1 / QCBS / LCS; GST).
+- 1. Important Dates - dates and times ONLY (Activity | Date): every date stated, incl.
+  hard-copy / original EMD deadline, opening, presentation, bid validity; a usual date the
+  tender leaves out (pre-bid, query deadline, bid opening) gets its own "Not stated" row.
+  No durations, procedures or venues.
+- 2. Eligibility (Criterion | Requirement | Proof): every qualifying condition incl. who may
+  bid, in keyword style; Proof = document name only.
+- 3. Evaluation - ONLY when marks decide who qualifies: one row per criterion (Criterion |
+  Marks / slabs in short form, e.g. "Excellent 25 ... Poor 5" | Max | Evidence), then the
+  rule 22 test in at most 25 words.
+- 4. Money & Terms: only items that cost money or change the price - EMD / bid security,
+  fee, performance security, payment terms ("Not stated" if absent), penalty / LD,
+  escalation / rate basis, award rule. Not here: termination, liability, IPR, debarment,
+  standard forfeiture or refund rules - unless unusual for this tender.
+- 5. Lots / clusters / sites - ONLY when the bidder chooses, prefers or prices lots.
+- 6. Scope: ONE table, at most 6 rows (Area | 3-6 keywords with key numbers). If the bidder
+  quotes per scope / lot, one row says so.
+- 7. Documents to Submit: complete - one row per item, never dropped (Document | Format
+  in at most 6 words | Where in at most 4 words).
+- 8. Rejected If: at most 8 rows, about 8 words each, only grounds the tender states.
+- 9. Quick Decision: at most 8 rows, answers at most 10 words ("Yes - ₹5 lakh", "No",
+  "Not stated"); only the bid / no-bid questions, not a repeat of the tables.
+- Summary: at most 50 words.
+No paragraphs or bullets outside tables except the one-line rule 22 test and at most one
+one-line note for a critical conflict. Conflicts also go in review_notes (full detail there).
 Every key date and amount must also be in key_facts with its exact quote.""",
 }
 
@@ -345,12 +339,11 @@ FINAL SELF-CHECK - before you answer, re-read every table row and bullet against
 Fix anything that fails, then return the JSON."""
 
 COMPACT_CHECK = """
-5. COMPACT balance: 3-4 pages, 5 at most and only for crucial details. To get there, first
-   shorten wording and merge repeated rows (one scope table; nothing repeated from key
-   facts), then delete procedural detail (standard forfeiture and refund rules, venue,
-   contacts, service lists, minor "Not stated" rows). Never delete a crucial detail
-   (disqualifier, deadline, eligibility condition, required document, conflict, figure that
-   changes the price)."""
+5. COMPACT: keyword style - rewrite any cell that reads like a sentence into a short phrase
+   that keeps the figure; remove any fact already given in another table; keep each absent
+   item as its own short "Not stated" row in its own table; Quick Decision at most 8 short rows. Never drop a crucial
+   detail (disqualifier, deadline, eligibility condition, required document, conflict,
+   figure that changes the price) - shorten it instead."""
 
 
 def build_system_prompt(style_examples: str, detail: str = "detailed") -> str:
