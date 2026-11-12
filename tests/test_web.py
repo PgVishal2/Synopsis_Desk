@@ -90,6 +90,15 @@ def test_full_flow(client):
     html = c.get(job_url).get_data(as_text=True)
     assert "Edited title" in html
     assert "Edited title" in c.get("/history?q=edited").get_data(as_text=True)
+
+    # edit a section table row as text (v31)
+    assert 'name="sec_0_0"' in html
+    tok = csrf(c, job_url)
+    r = c.post(f"/jobs/{job_id}/edit", data={"csrf": tok, "title": "Edited title",
+                                             "kft_label": ["EMD"], "kft_value": ["==₹8,00,000=="],
+                                             "sec_0_0": "Row edited by hand | value or as decided (p.1)"})
+    assert r.status_code == 302
+    assert "Row edited by hand" in c.get(job_url).get_data(as_text=True)
     assert "Test now" in c.get("/settings").get_data(as_text=True)
 
 

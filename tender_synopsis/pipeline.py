@@ -20,7 +20,7 @@ from .verify import Issue, _numbers, check_compact_length, run_checks
 
 DROPPED_CONDITION = re.compile(r"omit|left out|leaves out|missing|drops?\b|dropped|without the|"
                                r"(?:condition|qualifier|alternative|exception|proviso|caveat)", re.I)
-FIX_FIRST = ("score_sum", "score_assumption")
+FIX_FIRST = ("score_sum", "score_assumption", "scope_item")
 
 CRITICAL = ("deadline", "emd", "turnover", "net_worth", "pbg", "security", "fee", "value")
 
@@ -38,9 +38,72 @@ class Result:
     assessment_docx: Path | None = None
 
 
+# Section rows where a dropped condition costs money or causes rejection; their rows carry a
+# "(p.N)" reference, so the second check can read the same page.
+TERMS_SECTION = re.compile(r"money|terms|commercial|payment|fees?\b|emd|security|penalt|"
+                           r"reject|disqualif", re.I)
+_PAGE_REF = re.compile(r"\(\s*pp?\.\s*(\d+)", re.I)
+MAX_ROW_CHECKS = 20
+
+
+def term_rows(syn: Synopsis) -> list:
+    """Money / terms and rejection rows as facts for the second check (field, value, page)."""
+    from types import SimpleNamespace
+    out = []
+    for sec in syn.sections:
+        if sec.key == "documents_required" or not (TERMS_SECTION.search(sec.heading)
+                                                   or TERMS_SECTION.search(sec.key)):
+            continue
+        rows = [r for b in sec.blocks for r in (b.rows or [])]
+        rows += [[it.text] for b in sec.blocks for it in (b.items or [])]
+        for r in rows:
+            text = " - ".join(c for c in r if c)
+            m = _PAGE_REF.search(text)
+            if not m or re.search(r"^\W*not (?:stated|prescribed|applicable)", r[-1] or "", re.I):
+                continue
+            label = re.sub(r"^\d+[.)]\s*", "", sec.heading).strip()
+            out.append(SimpleNamespace(field=f"{label}: {r[0][:60]}", value=text, file="",
+                                       page=int(m.group(1)), quote=""))
+    return out[:MAX_ROW_CHECKS]
+
+
+# ---- LLM_REASONING=auto: how much the AI should "think" for this tender -----------------------
+AUTO_MAX_PAGES = 30          # longer than this -> careful (high)
+AUTO_MAX_SCANNED = 0.2       # share of pages read by OCR above which -> high
+SCORED = re.compile(r"\bmarks\b|cut[- ]?off|qualifying (?:score|marks)|technical score|"
+                    r"\bqcbs\b|\blcs\b|weightage|\bscoring\b", re.I)
+
+
+def auto_reasoning(tender: TenderText, condensed: bool = False) -> tuple[str, str]:
+    """('low' | 'high', plain reason). Low only when every sign says the tender is simple:
+    short, one file, mostly readable text, no marks / cut-off, no corrigendum, not condensed.
+    Any doubt -> high, because a missed detail costs more than the saving."""
+    pages = len(tender.pages)
+    files = list(dict.fromkeys(p.file for p in tender.pages))
+    scanned = sum(p.ocr for p in tender.pages)
+    reasons = []
+    if pages > AUTO_MAX_PAGES:
+        reasons.append(f"{pages} pages")
+    if len(files) > 1:
+        reasons.append(f"{len(files)} files")
+    if any(tender.role(f) == "corrigendum" for f in files):
+        reasons.append("corrigendum")
+    if pages and scanned / pages > AUTO_MAX_SCANNED:
+        reasons.append(f"{scanned} scanned pages")
+    if condensed:
+        reasons.append("long tender condensed")
+    if SCORED.search(tender.full_text):
+        reasons.append("marks / cut-off")
+    if reasons:
+        return "high", "auto: " + ", ".join(reasons)
+    return "low", f"auto: short simple tender ({pages} pages, 1 file, no marks)"
+
+
 def llm_double_check(syn: Synopsis, tender: TenderText) -> list[Issue]:
-    """Second opinion on critical facts only (cheap: short page excerpts)."""
+    """Second opinion on critical facts plus the money / terms and rejection rows (cheap: each
+    source page is sent once, and the check runs without the model's 'thinking')."""
     facts = [k for k in syn.key_facts if any(c in k.field.lower() for c in CRITICAL)]
+    facts += term_rows(syn)
     if not facts:
         return []
     data, usage = llm.json_call(VERIFY_PROMPT, verify_input(facts, tender))
@@ -149,7 +212,8 @@ def write_review(syn: Synopsis, issues: list[Issue], path: Path, usage: dict,
                 f"{r.option_group} | {'' if r.amount_inr is None else f'{r.amount_inr:,.0f}'} | "
                 f"{r.count or ''} | {r.period_years or ''} | {r.file} | {r.page} |" for r in syn.requirements]
     if usage:
-        out += ["", f"_AI usage: {llm.usage_line(usage)} · model: {usage.get('model')}_"]
+        out += ["", f"_AI usage: {llm.usage_line(usage)} · model: {usage.get('model')}"
+                + (f" · thinking: {usage['thinking']}" if usage.get("thinking") else "") + "_"]
     path.write_text("\n".join(out), encoding="utf-8")
 
 
@@ -197,6 +261,7 @@ def generate(files: list[str | Path], out_dir: str | Path = "output", detail: st
         raise
     finally:
         llm.stop_ledger()
+        llm.set_job_reasoning(None)
 
 
 def _generate(files, out_dir, detail, double_check, exclude_example, name, profiles, say, t0):
@@ -210,8 +275,17 @@ def _generate(files, out_dir, detail, double_check, exclude_example, name, profi
     if packed.mode == "condensed":
         say("Long tender: key pages kept in full, other pages summarised in parts…")
     system = build_system_prompt(load_examples(exclude=exclude_example), detail)
+    thinking = ""
+    if llm.reasoning_setting() == "auto":
+        level, why = auto_reasoning(tender, packed.mode == "condensed")
+        llm.set_job_reasoning(level)
+        thinking = f"{level} ({why})"
+    elif llm.reasoning_setting():
+        thinking = llm.reasoning_setting()
     say("Writing the synopsis…")
     syn, usage = llm.structured_call(system, build_user_prompt(packed.text), Synopsis)
+    if thinking and "deepseek" in str(usage).lower():
+        usage["thinking"] = thinking
     usage = llm._merge_usage(packed.usage, usage) if packed.usage else usage
     if tender.ai_pages:                     # hard-to-read pages the AI read from their images
         for k in ("input_tokens", "output_tokens"):

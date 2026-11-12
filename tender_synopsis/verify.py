@@ -772,6 +772,98 @@ def check_compact_length(syn: Synopsis) -> list[Issue]:
 
 
 
+# --- scope completeness: items a cited page lists must reach the Scope table ---------------
+SCOPE_SECTION = re.compile(r"scope|obligation|deliverable|work to be|services to be", re.I)
+LIST_CUE = re.compile(r"\b(?:must|shall|should|will|to)\s+(?:also\s+)?(?:include|comprise|consist of|"
+                      r"cover|provide)\b|\bsuch as\b|\bincluding\b|\bcomprising\b|\bconsisting of\b|"
+                      r"\binclude[sd]?\b", re.I)
+_PAGE_SPAN = re.compile(r"\bpp?\.\s*(\d+)(?:\s*[-–]\s*(\d+))?", re.I)
+_ITEM_LEAD = re.compile(r"^(?:and|or|also|the|a|an|its|their|adequate|sufficient|proper|other|"
+                        r"provisions? for|facilities for|infrastructure such as|works? such as)\s+", re.I)
+_SCOPE_STOP = set("with from that this their there which shall must should will such also "
+                  "latest technology equipped capacity sufficient adequate proper including etc "
+                  "provided required necessary various other works work facility facilities "
+                  "system systems area areas associated related allied general miscellaneous "
+                  "infrastructure".split())
+
+
+def _scope_text(syn: Synopsis) -> tuple[str, set[int]]:
+    parts, pages = [], set()
+    for sec in syn.sections:
+        if sec.key == "documents_required" or not (SCOPE_SECTION.search(sec.heading)
+                                                   or SCOPE_SECTION.search(sec.key)):
+            continue
+        for b in sec.blocks:
+            cells = [c for r in (b.rows or []) for c in r] + [b.text or ""]
+            cells += [x for it in (b.items or []) for x in [it.text, *(it.sub_items or [])]]
+            for c in cells:
+                parts.append(c)
+                for m in _PAGE_SPAN.finditer(c):
+                    a, z = int(m.group(1)), int(m.group(2) or m.group(1))
+                    if 0 <= z - a <= 4:
+                        pages.update(range(a, z + 1))
+    text = " ".join(parts).lower().replace("-", " ")
+    return re.sub(r"\s+", " ", text), pages
+
+
+_NORMS = re.compile(r"\b(?:norms?|standards?|specifications?|dimensions?|parameters?|criteria|"
+                    r"measures|attributes|details of)\b", re.I)
+_NOT_ITEM = re.compile(r"^(?:at|in|of|for|with|by|on|to|as|per|its|their)\b|\d|\.\s|\bcost\b", re.I)
+
+
+def _list_items(sentence: str) -> list[str]:
+    m = LIST_CUE.search(sentence)
+    if not m or _NORMS.search(sentence[:m.start()]):
+        return []                       # a list of norms / measures to follow, not of work items
+    tail = re.split(r"\b(?:to process|in order to|so as to|which|that)\b", sentence[m.end():])[0]
+    raw = re.split(r",|;|\band\b|\bas well as\b|\balong with\b", tail)
+    items = []
+    for x in raw:
+        x = re.sub(r"\s+", " ", x).strip(" .:-()")
+        for _ in range(3):
+            x = _ITEM_LEAD.sub("", x)
+        x = re.split(r"[-\s](?:must|shall|should|will|is|are)\b", x)[0].strip(" .:-")
+        if x and len(x.split()) <= 6 and not _NOT_ITEM.search(x):
+            items.append(x)
+    return items if len(items) >= 3 else []
+
+
+def _stem(w: str) -> str:
+    """Rough stem so 'feeding' finds 'feed', 'sewage' finds 'sewerage'."""
+    w = re.sub(r"(?:ation|ing|age|ion|ed|es|s)$", "", w) if len(w) > 5 else w
+    return w[:5]
+
+
+def _item_present(item: str, scope: str) -> bool:
+    words = [w for w in re.findall(r"[a-z]{3,}", item.lower().replace("-", " ")) if w not in _SCOPE_STOP]
+    if not words:
+        return True
+    found = sum(bool(re.search(r"\b" + re.escape(_stem(w)), scope)) for w in words)
+    return found >= max(1, len(words) // 2)
+
+
+def check_scope_items(syn: Synopsis, tender: TenderText) -> list[Issue]:
+    """When a page the Scope table cites lists items ("must include A, B, C and D"), each item
+    must appear in the Scope table. Works for any kind of work: facilities, deliverables,
+    services, equipment. Only pages the Scope section itself cites are read."""
+    scope, pages = _scope_text(syn)
+    if not scope or not pages or not tender.pages:
+        return []
+    issues, seen = [], set()
+    for n in sorted(pages):
+        text = re.sub(r"\s+", " ", tender.page_text(n, None) or "")
+        for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text):
+            for item in _list_items(sent):
+                key = item.lower()
+                if key in seen or _item_present(item, scope):
+                    continue
+                seen.add(key)
+                issues.append(Issue("error", "scope_item", f"The tender lists '{item}' but the Scope "
+                                    "table does not seem to have it. Add it if it is part of the "
+                                    "work (a different word for the same thing is fine).", n))
+    return issues[:15]
+
+
 # --- qualifying-score arithmetic (rule 22) -------------------------------------------------
 _TERM = r"\d+(?:\.\d+)?(?:\s*\([^()]{0,50}\))?"
 SUM_CHAIN = re.compile(rf"({_TERM}(?:\s*\+\s*{_TERM})+)\s*=\s*(\d+(?:\.\d+)?)")
@@ -831,7 +923,8 @@ def _run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     if tender.pages:
         quotes += check_requirements(syn, tender) + check_table_figures(syn, tender)
     issues = (quotes + check_empty(syn) + check_dates(syn) + check_markup(syn) + check_coverage(syn)
-              + check_documents(syn, tender) + check_score_sums(syn))
+              + check_documents(syn, tender) + check_score_sums(syn)
+              + (check_scope_items(syn, tender) if tender.pages else []))
     issues += [Issue("warning", "ingest", w) for w in tender.warnings]
     issues += [Issue("warning", "model_note", n) for n in syn.review_notes]
     order = {"error": 0, "warning": 1, "info": 2}

@@ -175,6 +175,7 @@ def edit(job_id):
             values = request.form.getlist("kft_value")
             data["key_facts_table"] = [[a.strip(), b.strip()] for a, b in zip(labels, values)
                                        if a.strip() or b.strip()]
+            apply_section_edits(data, request.form)
             data["summary"] = request.form.get("summary", data.get("summary", ""))
             data["profile"]["synopsis_title"] = request.form.get(
                 "title", data["profile"].get("synopsis_title", ""))
@@ -185,6 +186,34 @@ def edit(job_id):
     except Exception as e:
         flash(f"Changes not saved: {e}", "error")
     return redirect(url_for("main.job", job_id=job_id) + "#edit")
+
+
+def apply_section_edits(data: dict, form) -> None:
+    """Section tables / bullets / paragraphs edited as text: one row or bullet per line, table
+    columns separated by '|'. Only blocks present in the form change."""
+    for si, sec in enumerate(data.get("sections") or []):
+        for bi, b in enumerate(sec.get("blocks") or []):
+            raw = form.get(f"sec_{si}_{bi}")
+            if raw is None:
+                continue
+            lines = [ln.strip() for ln in raw.replace("\r", "").split("\n") if ln.strip()]
+            if b.get("type") in ("table", "kv_table"):
+                width = len(b.get("headers") or []) or (2 if b.get("type") == "kv_table" else 0)
+                rows = []
+                for ln in lines:
+                    cells = [c.strip() for c in ln.split("|")]
+                    if width and len(cells) > width:          # a '|' inside the last cell
+                        cells = cells[:width - 1] + [" | ".join(cells[width - 1:])]
+                    if width and len(cells) < width:
+                        cells += [""] * (width - len(cells))
+                    rows.append(cells)
+                b["rows"] = rows
+            elif b.get("type") in ("bullets", "numbered"):
+                old = {it.get("text"): it for it in b.get("items") or [] if isinstance(it, dict)}
+                b["items"] = [{"text": ln, "sub_items": (old.get(ln) or {}).get("sub_items", [])}
+                              for ln in lines]
+            elif b.get("type") == "paragraph":
+                b["text"] = " ".join(lines)
 
 
 @bp.post("/jobs/<job_id>/delete")

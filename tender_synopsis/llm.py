@@ -218,6 +218,40 @@ def model_name() -> str:
     return _ACTIVE.model if _ACTIVE else os.getenv("LLM_MODEL", DEFAULT_MODEL)
 
 
+import threading as _threading_mod  # noqa: E402
+
+_TLS = _threading_mod.local()          # per-job (per-thread) thinking level chosen by "auto"
+
+
+def reasoning_setting() -> str:
+    return os.getenv("LLM_REASONING", "").strip().lower()
+
+
+def set_job_reasoning(level: str | None) -> None:
+    """The level 'auto' picked for this tender (None clears it). Each job runs in its own
+    thread, so two synopses being written at once never share it."""
+    _TLS.level = level
+
+
+def _thinking(purpose: str) -> dict:
+    """DeepSeek 'thinking' (hidden reasoning, billed as output) for one call.
+    purpose "main": the synopsis - LLM_REASONING = auto | off | low | high | max (empty =
+    DeepSeek's default, high; auto = low for short simple tenders, high otherwise - chosen by
+    the pipeline). Any other purpose (the second check, long-tender notes) only compares or
+    extracts text, so thinking is switched off. Other providers are left unchanged."""
+    p = _ACTIVE or (providers() or [None])[0]
+    if p is None or "deepseek" not in (p.base_url or "").lower():
+        return {}
+    level = reasoning_setting() if purpose == "main" else "off"
+    if level == "auto":
+        level = getattr(_TLS, "level", None) or "high"
+    if level in ("off", "none", "disabled", "0"):
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    if level in ("low", "high", "max"):
+        return {"reasoning_effort": level, "extra_body": {"thinking": {"type": "enabled"}}}
+    return {}
+
+
 def _settings() -> dict:
     return {"mode": os.getenv("LLM_JSON_MODE", "auto").lower(),        # auto | strict | json | plain
             "retries": int(os.getenv("LLM_RETRIES", "4")),
@@ -450,7 +484,7 @@ def _structured_one(system: str, user: str, schema: type[T], last: bool = True) 
     client, model = _client(), model_name()
     cfg = _settings()
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    extra = {"max_tokens": cfg["max_out"]} if cfg["max_out"] else {}
+    extra = ({"max_tokens": cfg["max_out"]} if cfg["max_out"] else {}) | _thinking("main")
     fallback_reason = ""
     if cfg["mode"] in ("auto", "strict") and model not in _NO_STRICT:
         try:
@@ -607,7 +641,7 @@ def _json_one(system: str, user: str, last: bool = True) -> tuple[dict, dict]:
     client, model = _client(), model_name()
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     for attempt in range(2):
-        resp = _json_request(client, model, messages, {})
+        resp = _json_request(client, model, messages, _thinking("check"))
         raw = resp.choices[0].message.content or "{}"
         try:
             return loads_loose(raw), _usage(resp)

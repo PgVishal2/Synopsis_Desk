@@ -131,6 +131,11 @@ D. When two files list the same sites / items / quantities / areas, compare them
    in one place and a real address in another: give the real one and add a review_note).
 28. A review_note is not a store for synopsis content: any fact you note there that changes
    cost, risk, eligibility or a deadline must also appear in the synopsis tables.
+29. Keep every qualifier and trigger: an alternative ("or as decided by ... from time to
+   time"), a condition ("subject to", "unless", "if engaged / if applicable") or an exception
+   stays in the cell - in Money & Terms, Rejected If and everywhere else. A rejection ground
+   applies only when its trigger applies, so write the trigger (e.g. "Consultant engaged
+   but no engagement letter", not "No consultancy engagement document").
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.
@@ -286,9 +291,8 @@ DETAIL_LEVELS = {
                 "penalties, securities and other terms, then documents_required (the "
                 "complete Documents to Submit table) and quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
-    "compact": """Write the COMPACT version: usually 3-5 PAGES (about 900-1,500 words, not
-counting the Documents to Submit table). A scope-heavy tender may need 4-5 pages; completeness
-of its itemized scope and duties matters more than meeting a page or word target.
+    "compact": """Write the COMPACT version: 3-4 PAGES (about 900-1,200 words, not counting the
+Documents to Submit table).
 WHAT stays: every CRUCIAL detail - anything that can disqualify a bidder, cost money, change
 the price or set a hard deadline, every eligibility condition, every document to submit, and
 every conflict between documents. HOW it is written: KEYWORDS, NOT SENTENCES. Compact keeps
@@ -368,7 +372,8 @@ FINAL SELF-CHECK - before you answer, re-read every table row and bullet against
    tender calls them (e.g. LCS is not QCBS).
 4. Nothing dropped: who may bid, every named scope item and duty (rule 25), site condition
    and asset ownership (rule 26), contact e-mails (rule 27), any cost / risk fact you put in
-   review_notes (rule 28), "Not stated" for absent items a
+   review_notes (rule 28), every qualifier and trigger in Money & Terms and Rejected If
+   (rule 29), "Not stated" for absent items a
    bidder needs (payment terms, estimated value, attachments listed but missing), and the
    Documents to Submit table holds every checklist item, form, annexure, appendix and proof
    the tender names.
@@ -410,6 +415,11 @@ Mark ok=true when the value is correct but:
 - the tender uses a synonym for the field name (Security Deposit / Performance Security / PBG /
   performance guarantee are the same idea; EMD / bid security / earnest money likewise);
 - the value is a faithful paraphrase or a clearly labelled calculation.
+Facts named "<section>: <row>" are rows of the synopsis tables, written as short keywords:
+judge them on meaning, not wording. Mark them ok=false only when a figure is wrong or a
+condition, alternative or trigger in the source is dropped or changed (e.g. "or as decided by
+the Government from time to time" left out; "if a consultant is engaged" missing so an
+optional item reads as compulsory).
 correct_value must be the corrected value itself, never empty when ok=false.
 Source pages are given once at the top; each fact names its source page. A clause may continue
 on the following page.

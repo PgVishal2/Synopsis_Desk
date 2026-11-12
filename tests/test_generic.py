@@ -789,7 +789,7 @@ def test_final_self_check_comes_last():
 def test_compact_prompt_is_strict_and_detailed_is_unchanged():
     from tender_synopsis.prompts import build_system_prompt
     c, d = build_system_prompt("", "compact"), build_system_prompt("", "detailed")
-    assert "3-5 PAGES" in c and "6. COMPACT: keyword style" in c
+    assert "3-4 PAGES" in c and "6. COMPACT: keyword style" in c
     assert "KEYWORDS, NOT SENTENCES" in c and "Each fact appears ONCE" in c
     assert "Rejected If" in c and "keeps its OWN row in the table it belongs to" in c
     assert "COMPACT: keyword style" not in d and "5-6 pages" in d
@@ -941,3 +941,122 @@ def test_review_sheet_puts_fix_before_sending_on_top(tmp_path):
     text = path.read_text()
     assert text.index("Fix before sending (1)") < text.index("## Checks")
     assert text.count("score_sum") == 1
+
+
+# ---- v31: thinking control, wider second check, scope items, rule 29, section editing -----
+
+def test_deepseek_thinking_is_set_per_call_and_others_untouched(monkeypatch):
+    monkeypatch.setattr(llm, "_ACTIVE", llm.Provider("LLM", "k", "https://api.deepseek.com", "deepseek-flash"))
+    monkeypatch.setenv("LLM_REASONING", "low")
+    assert llm._thinking("main") == {"reasoning_effort": "low",
+                                     "extra_body": {"thinking": {"type": "enabled"}}}
+    assert llm._thinking("check") == {"extra_body": {"thinking": {"type": "disabled"}}}
+    monkeypatch.setenv("LLM_REASONING", "off")
+    assert llm._thinking("main") == {"extra_body": {"thinking": {"type": "disabled"}}}
+    monkeypatch.delenv("LLM_REASONING")
+    assert llm._thinking("main") == {}                         # DeepSeek's own default
+    monkeypatch.setattr(llm, "_ACTIVE", llm.Provider("LLM2", "k", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini"))
+    assert llm._thinking("check") == {} and llm._thinking("main") == {}
+
+
+def _sec(key, heading, headers, rows):
+    return {"key": key, "heading": heading, "blocks": [
+        {"type": "table", "text": "", "headers": headers, "items": [], "rows": rows}]}
+
+
+def test_second_check_also_reads_money_and_rejection_rows(monkeypatch):
+    from tender_synopsis import pipeline
+    s = Synopsis.model_validate({"profile": {}, "sections": [
+        _sec("commercial_terms", "4. Money & Terms", ["Item", "Terms"],
+             [["Payment", "Feeding charges on pattern of 4 Gaushalas (p.40)"],
+              ["Escalation", "Not stated"]]),
+        _sec("rejection_grounds", "7. Rejected If", ["Ground"],
+             [["No consultancy engagement document (p.30)"]]),
+        _sec("scope_of_work", "5. Scope", ["Area", "Items"], [["Sheds", "Cattle sheds (p.17)"]])]})
+    rows = pipeline.term_rows(s)
+    assert [(r.field, r.page) for r in rows] == [("Money & Terms: Payment", 40),
+                                                 ("Rejected If: No consultancy engagement document (p.30)", 30)]
+    sent = {}
+    monkeypatch.setattr(llm, "json_call", lambda sys, u: (sent.setdefault("u", u), ({"checks": []}, {}))[1])
+    t = TenderText(pages=[Page("a.pdf", 30, "consultancy"), Page("a.pdf", 40, "feeding")])
+    pipeline.llm_double_check(s, t)
+    assert "Money & Terms: Payment" in sent["u"] and "[[PAGE 40]]" in sent["u"]
+
+
+def test_items_listed_on_a_cited_page_must_reach_the_scope_table():
+    from tender_synopsis.verify import check_scope_items
+    t = TenderText(pages=[Page("t.pdf", 17,
+        "The facility must include wellness centre, provisions for eco-tourism, and infrastructure "
+        "such as CCTV system, LED compound lighting, rainwater harvesting and rooftop solar power "
+        "generation. Facility dimensions and space norms such as covered area, open area, yard "
+        "size must be adhered to.")])
+    def syn(items):
+        return Synopsis.model_validate({"profile": {}, "sections": [
+            _sec("scope_of_work", "5. Scope & Obligations", ["Area", "Items"], [["Facilities", items]])]})
+    miss = check_scope_items(syn("Eco-tourism; CCTV; LED lighting; rainwater harvesting; rooftop solar (p.17)"), t)
+    assert [i.field for i in miss] == ["scope_item"] and "wellness centre" in miss[0].message
+    assert miss[0].page == 17 and miss[0].severity == "error"
+    full = "Wellness centre; eco-tourism; CCTV; LED lighting; rainwater harvesting; rooftop solar (p.17)"
+    assert check_scope_items(syn(full), t) == []               # norms lists are not work items
+    assert check_scope_items(syn("Wellness centre"), t) == []   # no page cited: nothing to compare
+
+
+def test_prompt_keeps_qualifiers_and_rejection_triggers():
+    from tender_synopsis.prompts import VERIFY_PROMPT, build_system_prompt
+    for mode in ("compact", "detailed"):
+        p = build_system_prompt("", mode)
+        assert "29. Keep every qualifier and trigger" in p and "(rule 29)" in p
+        assert p.index("28. A review_note") < p.index("29. Keep every qualifier")
+    assert "or as decided by" in VERIFY_PROMPT and "optional item reads as compulsory" in VERIFY_PROMPT
+
+
+def test_section_rows_can_be_edited_as_text():
+    from webapp.views import apply_section_edits
+    data = {"sections": [
+        {"key": "x", "heading": "Money", "blocks": [
+            {"type": "table", "headers": ["Item", "Terms"], "rows": [["Payment", "old"]], "items": [], "text": ""},
+            {"type": "bullets", "headers": [], "rows": [], "text": "",
+             "items": [{"text": "Late bid", "sub_items": ["p.16"]}]}]}]}
+    form = {"sec_0_0": "Payment | Nil; or as decided by Govt (p.40)\r\nNote | a | b\n\n",
+            "sec_0_1": "Late bid\nConsultant engaged but no engagement letter (p.30)"}
+    apply_section_edits(data, form)
+    b0, b1 = data["sections"][0]["blocks"]
+    assert b0["rows"] == [["Payment", "Nil; or as decided by Govt (p.40)"], ["Note", "a | b"]]
+    assert [i["text"] for i in b1["items"]] == ["Late bid", "Consultant engaged but no engagement letter (p.30)"]
+    assert b1["items"][0]["sub_items"] == ["p.16"]
+    apply_section_edits(data, {})                               # nothing sent: nothing changes
+    assert b0["rows"][0][0] == "Payment"
+
+
+# ---- v32: LLM_REASONING=auto ----------------------------------------------------------------
+
+def test_auto_thinking_is_low_only_for_short_simple_tenders():
+    from tender_synopsis.pipeline import auto_reasoning
+    simple = TenderText(pages=[Page("nit.pdf", i, "Supply of chairs. EMD Rs 10,000. L1 basis.")
+                               for i in range(1, 11)])
+    assert auto_reasoning(simple)[0] == "low"
+    assert auto_reasoning(simple, condensed=True)[0] == "high"
+    scored = TenderText(pages=simple.pages + [Page("nit.pdf", 11, "Minimum 50 marks to qualify.")])
+    lvl, why = auto_reasoning(scored)
+    assert lvl == "high" and "marks" in why
+    long = TenderText(pages=[Page("nit.pdf", i, "Works.") for i in range(1, 41)])
+    assert auto_reasoning(long) == ("high", "auto: 40 pages")
+    two = TenderText(pages=[Page("a.pdf", 1, "x"), Page("b.pdf", 1, "y")])
+    assert "2 files" in auto_reasoning(two)[1]
+    scan = TenderText(pages=[Page("a.pdf", i, "x", ocr=(i < 4)) for i in range(1, 11)])
+    assert "3 scanned pages" in auto_reasoning(scan)[1]
+
+
+def test_auto_level_is_per_job_and_defaults_to_high(monkeypatch):
+    import threading
+    monkeypatch.setattr(llm, "_ACTIVE", llm.Provider("LLM", "k", "https://api.deepseek.com", "deepseek-flash"))
+    monkeypatch.setenv("LLM_REASONING", "auto")
+    assert llm._thinking("main")["reasoning_effort"] == "high"      # nothing chosen yet
+    llm.set_job_reasoning("low")
+    assert llm._thinking("main")["reasoning_effort"] == "low"
+    seen = {}
+    th = threading.Thread(target=lambda: seen.update(t=llm._thinking("main")))
+    th.start(); th.join()
+    assert seen["t"]["reasoning_effort"] == "high"                  # other jobs unaffected
+    assert llm._thinking("check") == {"extra_body": {"thinking": {"type": "disabled"}}}
+    llm.set_job_reasoning(None)

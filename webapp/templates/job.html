@@ -129,7 +129,7 @@
 
 <div class="panel" id="edit">
   <h2>Edit before sharing</h2>
-  <p class="small muted">Change the title, the top table, the summary or the reviewer notes. Saving rebuilds the Word file and re-runs the source checks (no AI call).</p>
+  <p class="small muted">Change the title, the top table, any section, the summary or the reviewer notes. Saving rebuilds the Word file and re-runs the source checks (no AI call).</p>
   <form method="post" action="{{ url_for('main.edit', job_id=job.id) }}">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <div class="field"><label for="title">Title</label><input id="title" type="text" name="title" value="{{ p.synopsis_title }}"></div>
@@ -143,6 +143,24 @@
       </div>
       <button type="button" class="btn ghost small" id="add-row">{{ icon('plus', 14) }} Add row</button>
       <p class="small muted" style="margin-top:6px">Use **bold**, ==yellow== and ++blue++ to highlight.</p>
+    </div>
+    <div class="field"><label>Sections</label>
+      <p class="small muted" style="margin:0 0 6px">One table row per line, columns separated by <b>|</b>. One bullet per line. Delete a line to remove it.</p>
+      {% for sec in s.sections %}{% set si = loop.index0 %}
+      <details class="more"><summary>{{ loop.index }}. {{ sec.heading | strip_num }}</summary>
+        {% for b in sec.blocks %}{% set bi = loop.index0 %}
+          {% if b.type in ('table', 'kv_table') %}
+          {% if b.headers %}<div class="small muted" style="margin-top:6px">Columns: {{ b.headers | join(' | ') }}</div>{% endif %}
+          <textarea class="code" name="sec_{{ si }}_{{ bi }}" rows="{{ [b.rows|length + 1, 14] | min }}" aria-label="{{ sec.heading }} table">{% for r in b.rows %}{{ r | map('replace', '\n', ' ') | join(' | ') }}
+{% endfor %}</textarea>
+          {% elif b.type in ('bullets', 'numbered') %}
+          <textarea class="code" name="sec_{{ si }}_{{ bi }}" rows="{{ [b['items']|length + 1, 12] | min }}" aria-label="{{ sec.heading }} list">{% for it in b['items'] %}{{ it.text | replace('\n', ' ') }}
+{% endfor %}</textarea>
+          {% elif b.type == 'paragraph' %}
+          <textarea name="sec_{{ si }}_{{ bi }}" rows="2" aria-label="{{ sec.heading }} text">{{ b.text }}</textarea>
+          {% endif %}
+        {% endfor %}
+      </details>{% endfor %}
     </div>
     <div class="field"><label for="summary">Summary</label><textarea id="summary" name="summary">{{ s.summary }}</textarea></div>
     <div class="field"><label for="notes">Reviewer notes (one per line)</label><textarea id="notes" name="notes">{{ s.review_notes | join('\n') }}</textarea></div>
