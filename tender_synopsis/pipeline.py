@@ -18,6 +18,10 @@ from .schema import Synopsis
 from .style_examples import load_examples
 from .verify import Issue, _numbers, check_compact_length, run_checks
 
+DROPPED_CONDITION = re.compile(r"omit|left out|leaves out|missing|drops?\b|dropped|without the|"
+                               r"(?:condition|qualifier|alternative|exception|proviso|caveat)", re.I)
+FIX_FIRST = ("score_sum", "score_assumption")
+
 CRITICAL = ("deadline", "emd", "turnover", "net_worth", "pbg", "security", "fee", "value")
 
 
@@ -55,6 +59,10 @@ def llm_double_check(syn: Synopsis, tender: TenderText) -> list[Issue]:
                            r"truncat|does not (?:state|mention)|no mention|cannot (?:be )?(?:confirm|verif)",
                            f"{c.get('reason', '')} {fix}", re.I)
         severity = "warning" if (not fix or same_numbers or unseen) else "error"
+        # a condition, alternative or qualifier left out changes the meaning even when every
+        # number matches (e.g. "... or as decided by the Government from time to time")
+        if fix and not unseen and DROPPED_CONDITION.search(f"{c.get('reason', '')}"):
+            severity = "error"
         lead = ("Could not confirm this on the quoted page - please check the documents: "
                 if unseen else "Second check disagrees: ")
         issues.append(Issue(severity, field, f"{lead}{c.get('reason', '')}"
@@ -99,6 +107,14 @@ def documents_table(tender: TenderText) -> list[dict]:
     return sorted(rows, key=lambda r: r["rank"])
 
 
+def fix_first(issues: list[Issue]) -> list[Issue]:
+    """What must be corrected before sharing: the second check's real disagreements (a
+    different figure or a dropped condition) and wrong qualifying-score sums. Quote-not-found
+    errors stay in the normal list - they are usually wording or table-layout differences."""
+    return [i for i in issues if i.severity == "error"
+            and (i.field in FIX_FIRST or i.message.startswith("Second check disagrees"))]
+
+
 def write_review(syn: Synopsis, issues: list[Issue], path: Path, usage: dict,
                  tender: TenderText | None = None) -> None:
     p = syn.profile
@@ -108,9 +124,15 @@ def write_review(syn: Synopsis, issues: list[Issue], path: Path, usage: dict,
     for k, v in p.model_dump().items():
         out.append(f"| {k} | {', '.join(v) if isinstance(v, list) else v} |")
     n_err = sum(i.severity == "error" for i in issues)
+    line = lambda i: (f"- {icon[i.severity]} **{i.field}**" + (f" (p.{i.page})" if i.page else "")
+                      + f": {i.message}")
+    fix = fix_first(issues)
+    if fix:
+        out += ["", f"## 🛑 Fix before sending ({len(fix)})", "",
+                "_Correct these in the synopsis before it is shared (edit on the results page)._", ""]
+        out += [line(i) for i in fix]
     out += ["", f"## Checks: {n_err} error(s), {len(issues) - n_err} other", ""]
-    out += [f"- {icon[i.severity]} **{i.field}**"
-            + (f" (p.{i.page})" if i.page else "") + f": {i.message}" for i in issues] or ["- All checks passed."]
+    out += [line(i) for i in issues if i not in fix] or ["- All checks passed."]
     out += ["", "## Key facts and sources", "", "| Fact | Value | File | Page | Quote |",
             "|---|---|---|---|---|"]
     out += [f"| {k.field} | {k.value} | {k.file} | {k.page} | {k.quote} |" for k in syn.key_facts]

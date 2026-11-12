@@ -789,11 +789,11 @@ def test_final_self_check_comes_last():
 def test_compact_prompt_is_strict_and_detailed_is_unchanged():
     from tender_synopsis.prompts import build_system_prompt
     c, d = build_system_prompt("", "compact"), build_system_prompt("", "detailed")
-    assert "3-4 PAGES" in c and "5. COMPACT: keyword style" in c
+    assert "3-5 PAGES" in c and "6. COMPACT: keyword style" in c
     assert "KEYWORDS, NOT SENTENCES" in c and "Each fact appears ONCE" in c
     assert "Rejected If" in c and "keeps its OWN row in the table it belongs to" in c
     assert "COMPACT: keyword style" not in d and "5-6 pages" in d
-    assert "SMALLEST single step" in c and "FULL marks" in c          # rule 22 clarified
+    assert "SMALLEST single fixed step" in c and "NEVER assume they are earned" in c  # rule 22
 
 
 def test_long_compact_synopsis_is_flagged():
@@ -864,3 +864,80 @@ def test_unnumbered_documents_like_gst_and_pan_are_checked():
     assert "GST registration" not in msg and "EMD" not in msg       # listed / stated as nil
     full = [["GST certificate"], ["PAN"], ["ITRs (3 years)"], ["Power of Attorney"]]
     assert check_documents(syn(full, "EMD is nil."), t) == []
+
+
+# ---- v30: judged marks, score sums, scope item by item, fix-before-sending ----------------
+
+def _eval_syn(line):
+    return Synopsis.model_validate({"profile": {}, "summary": "", "sections": [
+        {"key": "evaluation", "heading": "Evaluation", "blocks": [
+            {"type": "table", "text": "", "headers": ["Criterion", "Max"], "items": [],
+             "rows": [["Experience", "20"], ["Technical presentation", "30"]]},
+            {"type": "paragraph", "text": line, "headers": [], "rows": [], "items": []}]}]})
+
+
+def test_score_line_counting_presentation_as_earned_is_flagged():
+    from tender_synopsis.verify import check_score_sums
+    bad = check_score_sums(_eval_syn("Minimum bidder: 10 (3 yrs) + 10 (500 head) + 10 (Rs 20 Cr) "
+                                     "+ 30 (presentation) = 60/100 (computed) - above the 50 cut-off."))
+    assert [i.field for i in bad] == ["score_assumption"] and bad[0].severity == "error"
+    ok = check_score_sums(_eval_syn("Bidder at minimum: 10 + 10 + 10 = 30/70 fixed (computed); "
+                                    "needs at least 20 of 30 presentation marks for 50/100."))
+    assert ok == []
+    best = check_score_sums(_eval_syn("Can reach at most 10 + 10 + 30 (interview) = 50/100 (computed)."))
+    assert best == []                     # a best-case ceiling may count judged marks
+
+
+def test_wrong_score_sum_is_an_error_anywhere():
+    from tender_synopsis.verify import check_score_sums
+    bad = check_score_sums(_eval_syn("Bidder at minimum: 32.5 + 32.5 = 70 (computed) - qualifies."))
+    assert len(bad) == 1 and bad[0].field == "score_sum" and "65" in bad[0].message
+    note = Synopsis.model_validate({"profile": {}, "review_notes": ["Total 15 + 15 + 20 = 45"]})
+    assert [i.field for i in check_score_sums(note)] == ["score_sum"]
+    assert check_score_sums(Synopsis.model_validate({"profile": {}, "summary": "8 + 4 = 12"})) == []
+
+
+def test_prompt_v30_rules_are_generic_and_in_both_modes():
+    from tender_synopsis.prompts import build_system_prompt
+    for mode in ("compact", "detailed"):
+        p = build_system_prompt("", mode)
+        assert "25. Scope and obligations item by item" in p
+        assert "26. Site, asset and handover terms" in p
+        assert "27. Contacts as printed" in p and "28. A review_note is not a store" in p
+        assert "judged marks" in p.lower() and "term by term" in p
+    from tender_synopsis import prompts
+    rules = (prompts.HOUSE_RULES + prompts.SECTION_LIBRARY + prompts.DETAIL_LEVELS["compact"]
+             + prompts.FINAL_CHECK + prompts.COMPACT_CHECK).lower()
+    assert "gaushala" not in rules and "cattle" not in rules     # nothing tender-specific
+    c = build_system_prompt("", "compact")
+    assert "Scope & Obligations" in c and "at most 6 rows" not in c
+    assert "at most 3 tender-specific" in c and "reference no. is already in the title line" in c
+
+
+def test_dropped_condition_from_second_check_must_be_fixed(monkeypatch):
+    from tender_synopsis import pipeline
+    from tender_synopsis.verify import Issue
+    s = Synopsis.model_validate({"profile": {}, "key_facts": [
+        {"field": "feeding_charges_fee", "value": "Govt pays on same pattern", "file": "", "page": 1,
+         "quote": "same pattern"}]})
+    monkeypatch.setattr(llm, "json_call", lambda sys, u: ({"checks": [
+        {"field": "feeding_charges_fee", "ok": False, "reason": "The value omits the alternative "
+         "'or as decided by the Government from time to time'.",
+         "correct_value": "Same pattern or as decided by the Government from time to time"}]}, {}))
+    t = TenderText(pages=[Page("a.pdf", 1, "same pattern or as decided by the Government")])
+    out = pipeline.llm_double_check(s, t)
+    assert out[0].severity == "error"
+    assert pipeline.fix_first(out + [Issue("error", "requirement 7", "Source quote not found")]) == out
+
+
+def test_review_sheet_puts_fix_before_sending_on_top(tmp_path):
+    from tender_synopsis import pipeline
+    from tender_synopsis.verify import Issue
+    s = Synopsis.model_validate({"profile": {"synopsis_title": "T"}})
+    issues = [Issue("warning", "model_note", "note"),
+              Issue("error", "score_sum", "Arithmetic: 32.5 + 32.5 = 70 ...")]
+    path = tmp_path / "r.md"
+    pipeline.write_review(s, issues, path, {})
+    text = path.read_text()
+    assert text.index("Fix before sending (1)") < text.index("## Checks")
+    assert text.count("score_sum") == 1

@@ -91,14 +91,21 @@ D. When two files list the same sites / items / quantities / areas, compare them
    (e.g. "Government of India PSUs" in one place, "Central or State PSUs" in another).
 22. Qualifying score: when marks decide who goes forward (a minimum technical score, a
    cut-off before presentation, a minimum per criterion), show the marks table (Criterion |
-   Slabs -> marks | Max) and test it: score a bidder who meets ONLY the minimum eligibility
-   (the slab that the eligibility minimum itself earns on criteria tied to it, and FULL marks
-   on every criterion that has no eligibility minimum - the best case, never a guess).
-   If even that best case is below the cut-off, say so plainly with the sum, e.g. "Bidder at
-   minimum turnover and staff can reach at most 48/80 (computed) - below the 50/80 cut-off",
-   and name the SMALLEST single step that closes the gap (e.g. "turnover above Rs 2 crore OR
-   more than 20 staff is enough"), not every possible improvement - ==yellow==, in
-   quick_decision and a review_note.
+   Slabs -> marks | Max) and test it for a bidder who meets ONLY the minimum eligibility.
+   Split the criteria in two: FIXED marks follow from facts (years, turnover, counts,
+   projects, staff, certificates) - give the slab the eligibility minimum itself earns (full
+   marks where no minimum is tied to the criterion); JUDGED marks depend on an evaluator's
+   opinion (presentation, interview, demo, approach / methodology note, "committee
+   assessment") - NEVER assume they are earned. Always write the sum out term by term, e.g.
+   "10 + 10 + 10 = 30 fixed (computed)", then say what the cut-off needs from the judged
+   marks, e.g. "Bidder at minimum: 30/70 fixed; needs at least 20 of 30 presentation marks
+   for the 50/100 cut-off". If fixed plus ALL judged marks is still below the cut-off, say so
+   plainly with the sum, e.g. "Bidder at minimum turnover and staff can reach at most 48/80
+   (computed) - below the 50/80 cut-off". When fixed marks alone fall short, also name the
+   SMALLEST single fixed step that closes the gap (e.g. "turnover above Rs 2 crore OR more
+   than 20 staff is enough"), not every possible improvement. ==yellow==, in quick_decision
+   (e.g. "Can a bidder at the minimum qualify? | Only with 20+ of 30 presentation marks")
+   and a review_note.
 23. Keep eligibility wording exact: do not widen or narrow it (e.g. "digital marketing
    services" is not "advertising and marketing services"; "consecutive years starting from
    2022-23" is not "any 3 consecutive years"). Say who may bid when the tender limits it
@@ -109,6 +116,21 @@ D. When two files list the same sites / items / quantities / areas, compare them
    number written by hand before the printed reference). If something a bidder needs is
    absent - payment terms, estimated value, a draft contract or form the index lists but the
    file does not contain - say "Not stated" / "Listed but not attached" (review_note).
+25. Scope and obligations item by item: every facility, deliverable, service, activity and
+   duty the tender names (what must be built, supplied, delivered, staffed, maintained or
+   complied with) appears in the synopsis as its own short keyword item. Group items under
+   area labels, but never fold several named items into an umbrella word ("animal
+   facilities", "allied services", "statutory compliance") and never drop one - the scope is
+   the work the bidder must price and plan.
+26. Site, asset and handover terms: when stated, give the site condition and handover basis
+   (as-is / where-is, encumbrances, demolition, clearing, soil or site preparation at the
+   bidder's cost), who owns the land, buildings, equipment or output, and hand-back at the
+   end. They change cost and risk, so they go in the synopsis tables, not only review_notes.
+27. Contacts as printed: the e-mail address, postal address, portal or URL for registration,
+   queries, pre-bid and submission, exactly as written (a placeholder such as "xxxx.com"
+   in one place and a real address in another: give the real one and add a review_note).
+28. A review_note is not a store for synopsis content: any fact you note there that changes
+   cost, risk, eligibility or a deadline must also appear in the synopsis tables.
 12. Totals you calculate (e.g. adding up a site list) are allowed in the synopsis, but end the
    value with "(computed)" and quote one row of the list; never state process advice (e.g.
    "fund the account 24 hours before") unless the tender says it.
@@ -174,7 +196,10 @@ CORE SECTIONS (always include, in this order; merge or rename to suit the tender
 - eligibility_technical Experience, similar-work thresholds, certifications
 - eligibility_financial Turnover, net worth, profitability, banker's certificate
 - jv_consortium        Allowed or not; member limits and shares
-- scope_of_work        What is to be delivered (grouped, concise)
+- scope_of_work        What is to be delivered: every named facility, deliverable, service
+                       and duty (rule 25), grouped by area, keyword style; the bidder's
+                       operating duties (staffing, upkeep, records, reserves, wage and
+                       statutory compliance) in their own rows
 - commercial_terms     Payment schedule, contract period, penalties/LD, termination essentials
 - rejection_grounds    (detailed mode) "Will be rejected if…": the stated grounds for outright
                        rejection (missing document, late hard copy, unsigned forms, conditional
@@ -261,8 +286,9 @@ DETAIL_LEVELS = {
                 "penalties, securities and other terms, then documents_required (the "
                 "complete Documents to Submit table) and quick_decision last. Give every condition a bidder must meet or price for - "
                 "but as tables and short bullets, never paragraphs.",
-    "compact": """Write the COMPACT version: 3-4 PAGES (about 900-1,200 words, not counting the
-Documents to Submit table).
+    "compact": """Write the COMPACT version: usually 3-5 PAGES (about 900-1,500 words, not
+counting the Documents to Submit table). A scope-heavy tender may need 4-5 pages; completeness
+of its itemized scope and duties matters more than meeting a page or word target.
 WHAT stays: every CRUCIAL detail - anything that can disqualify a bidder, cost money, change
 the price or set a hard deadline, every eligibility condition, every document to submit, and
 every conflict between documents. HOW it is written: KEYWORDS, NOT SENTENCES. Compact keeps
@@ -285,25 +311,33 @@ KEYWORD STYLE (all tables):
   explanation; one row per item, so the reader sees each gap where they would look for it.
 - Page references only as a short "(p.N)" at the end of a cell, when useful.
 PARTS, in this order (this overrides the core section list above):
-- Key facts table (unnumbered): authority, work, reference no., estimated value, EMD, fee,
-  performance security, turnover / net worth, contract period, submission deadline,
-  pre-bid, evaluation method, price basis (what is quoted; L1 / H1 / QCBS / LCS; GST).
+- Key facts table (unnumbered): authority, work, estimated value, EMD, fee, performance
+  security, turnover / net worth, contract period, submission deadline, evaluation method,
+  price basis (what is quoted; L1 / H1 / QCBS / LCS; GST), plus at most 3 tender-specific
+  extras that decide the bid (e.g. site condition, capacity, minimum commitment). No other
+  rows: the reference no. is already in the title line, and the pre-bid, presentation and
+  other dates live only in Important Dates.
 - 1. Important Dates - dates and times ONLY (Activity | Date): every date stated, incl.
   hard-copy / original EMD deadline, opening, presentation, bid validity; a usual date the
   tender leaves out (pre-bid, query deadline, bid opening) gets its own "Not stated" row.
-  No durations, procedures or venues.
+  No durations or procedures; a venue or registration e-mail only as a short add-on to its
+  date (rule 27).
 - 2. Eligibility (Criterion | Requirement | Proof): every qualifying condition incl. who may
   bid, in keyword style; Proof = document name only.
 - 3. Evaluation - ONLY when marks decide who qualifies: one row per criterion (Criterion |
   Marks / slabs in short form, e.g. "Excellent 25 ... Poor 5" | Max | Evidence), then the
-  rule 22 test in at most 25 words.
+  rule 22 test in at most 30 words (fixed marks summed term by term; judged marks never
+  assumed).
 - 4. Money & Terms: only items that cost money or change the price - EMD / bid security,
   fee, performance security, payment terms ("Not stated" if absent), penalty / LD,
   escalation / rate basis, award rule. Not here: termination, liability, IPR, debarment,
   standard forfeiture or refund rules - unless unusual for this tender.
 - 5. Lots / clusters / sites - ONLY when the bidder chooses, prefers or prices lots.
-- 6. Scope: ONE table, at most 6 rows (Area | 3-6 keywords with key numbers). If the bidder
-  quotes per scope / lot, one row says so.
+- 6. Scope & Obligations: ONE table (Area | items as comma-separated keywords with key
+  numbers). Every named facility, deliverable and duty appears (rule 25) - keywords keep it
+  short; items are never merged or dropped. Usually 5-10 rows, with the bidder's operating
+  duties in their own rows; site condition / asset ownership (rule 26) here or in key facts.
+  If the bidder quotes per scope / lot, one row says so.
 - 7. Documents to Submit: complete - one row per item, never dropped (Document | Format
   in at most 6 words | Where in at most 4 words).
 - 8. Rejected If: at most 8 rows, about 8 words each, only grounds the tender states.
@@ -332,15 +366,19 @@ FINAL SELF-CHECK - before you answer, re-read every table row and bullet against
    you calculated ends with "(computed)".
 3. Names as written: selection method, document names and form numbers exactly as the
    tender calls them (e.g. LCS is not QCBS).
-4. Nothing dropped: who may bid, every scope area listed, "Not stated" for absent items a
+4. Nothing dropped: who may bid, every named scope item and duty (rule 25), site condition
+   and asset ownership (rule 26), contact e-mails (rule 27), any cost / risk fact you put in
+   review_notes (rule 28), "Not stated" for absent items a
    bidder needs (payment terms, estimated value, attachments listed but missing), and the
    Documents to Submit table holds every checklist item, form, annexure, appendix and proof
-   the tender names.{compact}
+   the tender names.
+5. Qualifying score: the sum is written out term by term and re-added; judged marks
+   (presentation, interview...) are never counted as earned (rule 22).{compact}
 Fix anything that fails, then return the JSON."""
 
 COMPACT_CHECK = """
-5. COMPACT: keyword style - rewrite any cell that reads like a sentence into a short phrase
-   that keeps the figure; remove any fact already given in another table; keep each absent
+6. COMPACT: keyword style - rewrite any cell that reads like a sentence into a short phrase
+   that keeps the figure (scope stays item by item, as keywords); remove any fact already given in another table; keep each absent
    item as its own short "Not stated" row in its own table; Quick Decision at most 8 short rows. Never drop a crucial
    detail (disqualifier, deadline, eligibility condition, required document, conflict,
    figure that changes the price) - shorten it instead."""

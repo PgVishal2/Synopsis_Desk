@@ -58,7 +58,10 @@ def _save_extras(job_id: str, res, tender=None) -> None:
     """Issues and document roles are not in the synopsis JSON, so keep them beside it."""
     from tender_synopsis.pipeline import documents_table
     od = out_dir(job_id)
-    (od / "issues.json").write_text(json.dumps([i.to_dict() for i in res.issues]), "utf-8")
+    from tender_synopsis.pipeline import fix_first
+    first = fix_first(res.issues)
+    (od / "issues.json").write_text(json.dumps([dict(i.to_dict(), fix_first=i in first)
+                                                for i in res.issues]), "utf-8")
     if tender is not None:
         docs = [{k: v for k, v in r.items() if k != "rank"} for r in documents_table(tender)]
         (od / "documents.json").write_text(json.dumps(docs), "utf-8")

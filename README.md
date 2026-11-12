@@ -28,7 +28,7 @@ rights, e-auction, lease / allotment, IBC Form G, disinvestment, multi-volume RF
 
 | Mode | Length | Content |
 |---|---|---|
-| **Compact** | 3–4 pages | Every crucial detail in **keyword style** (short phrases, not sentences; each fact once): key facts, all dates, eligibility, scoring (when marks decide), money & terms, lots (if any), scope (one short table), Documents to Submit (complete), Rejected If, Quick Decision (≤8 rows). The review sheet warns if it runs longer; nothing is cut automatically |
+| **Compact** | usually 3–5 pages | Every crucial detail in **keyword style** (short phrases, not sentences; each fact once): key facts, all dates, eligibility, scoring (when marks decide), money & terms, lots (if any), scope (one short table listing every named facility, deliverable and duty), site/asset terms and printed contacts when stated, Documents to Submit (complete), Rejected If, Quick Decision (≤8 rows). Scope-heavy tenders may take 4–5 pages; nothing is cut to meet a page target |
 | **Detailed** | about 5–6 pages | Full eligibility, scope & deliverables, evaluation marks, payment, penalties, securities, other terms, Documents to Submit, Quick Decision |
 
 Both modes are **table-first**: anything with 3 or more similar items becomes a table; bullets
@@ -77,6 +77,8 @@ has passed, the app itself adds *"Bid still open? – No"*.
 | Number match | Numbers in each value must appear in its quote (₹4 crore = 4,00,00,000; any date format) |
 | Documents to Submit | Warns if the list is missing; names every Form / Annexure / Appendix the tender mentions that the list leaves out, and common unnumbered documents the tender asks for (GST, PAN, EPF/ESI, MSME, incorporation, ITRs, audited accounts, CA certificate, power of attorney, experience proof, declarations, BoQ, integrity pact, ISO…) |
 | Table figures | Every amount, percentage and period written in the tables and bullets must exist somewhere in the documents (portal data-sheet formats like "Percentage(%) 5.00" included); otherwise ⚠️ "check it". Calculations must say "computed" |
+| Score arithmetic | Re-adds every written-out score sum and flags sums that do not match; judged presentation / interview marks are not treated as already earned |
+| Fix before sending | The results page and review sheet put second-check disagreements and score errors in a dedicated box at the top |
 | **Lakh / crore slip** | An amount 10×, 100× or 1000× off its source becomes a red ❌ (e.g. 290000000 written as ₹2.9 crore) |
 | Second AI check | A short second call re-checks critical figures against their page (and the next page); "could not confirm" is a ⚠️, a different number is a ❌ |
 | Conflicts between files | Different values in different files are shown side by side ("36 months (NIT) vs 1 year (GeM)"), never silently merged |

@@ -771,6 +771,47 @@ def check_compact_length(syn: Synopsis) -> list[Issue]:
                   "results page; nothing was removed automatically.")]
 
 
+
+# --- qualifying-score arithmetic (rule 22) -------------------------------------------------
+_TERM = r"\d+(?:\.\d+)?(?:\s*\([^()]{0,50}\))?"
+SUM_CHAIN = re.compile(rf"({_TERM}(?:\s*\+\s*{_TERM})+)\s*=\s*(\d+(?:\.\d+)?)")
+JUDGED = re.compile(r"presentation|interview|demo(?:nstration)?|viva|pitch|approach|methodolog|"
+                    r"work ?plan|committee|evaluator|subjective|assessment", re.I)
+_BEST_CASE = re.compile(r"at most|maximum|\bmax\b|best case|even with|all \d+ |full marks .{0,20}still", re.I)
+
+
+def _fmt(x: float) -> str:
+    return f"{x:g}"
+
+
+def check_score_sums(syn: Synopsis) -> list[Issue]:
+    """Re-add every 'a + b + c = N' a reader sees, and flag a qualifying-score line that counts
+    judged marks (presentation, interview...) as already earned. Works for any marks table."""
+    issues, seen = [], set()
+    texts = [t for t in _all_strings(syn) if t] + [("note", n) for n in syn.review_notes]
+    for t in texts:
+        where, text = t if isinstance(t, tuple) else ("synopsis", t)
+        plain = re.sub(r"[=+*]{2}", "", text)
+        for m in SUM_CHAIN.finditer(plain):
+            terms = [float(re.match(r"\d+(?:\.\d+)?", x.strip()).group())
+                     for x in re.split(r"\s*\+\s*", m.group(1))]
+            total, stated = sum(terms), float(m.group(2))
+            key = (m.group(0), where)
+            if key in seen:
+                continue
+            seen.add(key)
+            if abs(total - stated) > 0.01:
+                issues.append(Issue("error", "score_sum", f"Arithmetic: {m.group(0).strip()} - the "
+                                    f"parts add up to {_fmt(total)}, not {_fmt(stated)}. Fix before sending."))
+            judged = [x for x in re.split(r"\s*\+\s*", m.group(1)) if JUDGED.search(x)]
+            if judged and where == "synopsis" and not _BEST_CASE.search(plain):
+                issues.append(Issue("error", "score_assumption", f"'{m.group(0).strip()}' counts "
+                                    "judged marks (" + "; ".join(j.strip() for j in judged) + ") as already "
+                                    "earned. A bidder at the minimum only gets the fixed marks - show "
+                                    "how many judged marks the cut-off still needs. Fix before sending."))
+    return issues
+
+
 def run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     repaired = fix_markup(syn)
     tidy_text(syn)
@@ -790,7 +831,7 @@ def _run_checks(syn: Synopsis, tender: TenderText) -> list[Issue]:
     if tender.pages:
         quotes += check_requirements(syn, tender) + check_table_figures(syn, tender)
     issues = (quotes + check_empty(syn) + check_dates(syn) + check_markup(syn) + check_coverage(syn)
-              + check_documents(syn, tender))
+              + check_documents(syn, tender) + check_score_sums(syn))
     issues += [Issue("warning", "ingest", w) for w in tender.warnings]
     issues += [Issue("warning", "model_note", n) for n in syn.review_notes]
     order = {"error": 0, "warning": 1, "info": 2}

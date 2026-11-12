@@ -82,9 +82,15 @@
         <span class="badge warn">{{ warns|length }} to review</span>
         <span class="badge off">{{ infos|length }} notes</span>
       </div>
+      {% set fixes = errs | selectattr('fix_first') | list %}
+      {% if fixes %}<div class="err-box" style="white-space:normal;margin:10px 0">
+        <b>Fix before sending ({{ fixes|length }})</b>
+        <ul class="checks" style="margin:6px 0 0">{% for i in fixes %}<li class="error"><b>{{ i.field }}</b>: {{ i.message }}</li>{% endfor %}</ul>
+        <div class="small" style="margin-top:6px">Correct these with "Edit before sharing" below.</div>
+      </div>{% endif %}
       {% if not errs %}<p class="small" style="color:#1F5068">No figure contradicts its source. Still read the synopsis once before sharing.</p>{% endif %}
       <ul class="checks">
-        {% for i in errs + warns %}<li class="{{ i.severity }}"><b>{{ i.field }}</b>{% if i.page %} (p.{{ i.page }}){% endif %}: {{ i.message }}</li>{% endfor %}
+        {% for i in errs + warns if not i.fix_first %}<li class="{{ i.severity }}"><b>{{ i.field }}</b>{% if i.page %} (p.{{ i.page }}){% endif %}: {{ i.message }}</li>{% endfor %}
       </ul>
       {% if infos %}<details class="more"><summary>{{ infos|length }} more notes</summary>
         <ul class="checks">{% for i in infos %}<li class="info"><b>{{ i.field }}</b>: {{ i.message }}</li>{% endfor %}</ul></details>{% endif %}
